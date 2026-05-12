@@ -1,0 +1,38 @@
+# =============================================================================
+# .gitignore for eDNA-analysis-code
+# =============================================================================
+
+# Generated analysis outputs (fully regenerable by pipeline scripts)
+analyses/**/*.Rda
+analyses/**/*.rda
+analyses/**/*.csv
+analyses/**/*.tsv
+analyses/**/*.pdf
+analyses/**/*.txt
+
+# Stray R plot output at repo root
+Rplots.pdf
+# Ignore all files in /data except README.md
+data/*
+!data/README.md
+
+# Ignore all hidden files and directories at root
+/.*
+
+# R session artefacts
+.RData
+.Rhistory
+*.Rout
+
+# ggspatial / rosm tile cache
+rosm.cache/
+
+# macOS
+.DS_Store
+
+# Editor backup files
+*~
+*.swp
+
+# Allow gitignore itself
+!.gitignore
