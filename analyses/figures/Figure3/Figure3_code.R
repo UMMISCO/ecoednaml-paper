@@ -37,7 +37,7 @@ script_dir   <- dirname(script_path)                      # <repo>/analyses/figu
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 analyses_dir <- file.path(repo_root, "analyses")
 
-out_pdf <- file.path(script_dir, paste0("Figure3_", Sys.Date(), ".pdf"))
+out_pdf <- file.path(script_dir, "Figure3.pdf")
 
 objlist <- list()
 
@@ -227,20 +227,39 @@ tfeats.fbm$feature <- factor(tfeats.fbm$feature, levels = feature_order)
 featImp.df.filtered$feature <- factor(featImp.df.filtered$feature, levels = feature_order)
 effsize.df.filtered$feature <- factor(effsize.df.filtered$feature, levels = feature_order)
 
-# Plot 1: Feature presence tiles
-plot1 <- ggplot(tfeats.fbm, aes(x = comparison, y = feature)) + 
-  geom_tile(fill = "black", colour = "white", linewidth = 0.5) + 
-  xlab("Comparison") + 
-  ylab("Indicator MOTUs") +
-  theme_minimal() + 
+# Plot 1: Feature presence tiles — full grid so every cell border is visible
+plot1_data <- expand.grid(
+  feature    = feature_order,
+  comparison = unique(tfeats.fbm$comparison),
+  stringsAsFactors = FALSE
+)
+plot1_data$taxa_type <- ifelse(
+  paste(plot1_data$feature, plot1_data$comparison) %in%
+    paste(as.character(tfeats.fbm$feature), tfeats.fbm$comparison),
+  "Indicator MOTU", "Non-indicator MOTU"
+)
+plot1_data$feature <- factor(plot1_data$feature, levels = feature_order)
+
+plot1 <- ggplot(plot1_data, aes(x = comparison, y = feature)) +
+  geom_tile(aes(fill = taxa_type), colour = "white", linewidth = 0.5) +
+  scale_fill_manual(
+    name = NULL,
+    values = c("Indicator MOTU" = "black", "Non-indicator MOTU" = "gray80"),
+    limits = c("Indicator MOTU", "Non-indicator MOTU"),
+    guide = guide_legend(override.aes = list(colour = "black", linewidth = 0.5))
+  ) +
+  xlab("Comparison") +
+  ylab("MOTUs") +
+  theme_minimal() +
   theme(
-    legend.position = "none",
+    legend.position = "top",
+    legend.text = element_text(size = 13),
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size=14),
     axis.text.y = element_text(size = 12),
     panel.grid = element_blank(),
     axis.title.x = element_text(size = 16),
     axis.title.y = element_text(size = 16),
-    panel.background = element_rect(fill = "grey95", colour = NA),
+    panel.background = element_rect(fill = "gray95", colour = NA),
     plot.title = element_text(face = "bold", size = 14)
   ) +
   scale_y_discrete(drop = FALSE)
