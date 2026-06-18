@@ -8,7 +8,11 @@
 
 # -----------------------------------------------------------------------------
 # Commands to run the script (from repo root):
-# Rscript analyses/figures/Figure4/Figure4_code.R
+#   export REPO_ROOT="/data/projects/aime/analyses/seamount/metabarcoding/"
+#
+#   From REPO_ROOT, run the following commands:
+#
+#   Rscript analyses/figures/Figure4/Figure4_code.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
@@ -32,6 +36,10 @@ library(cowplot)
 script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
 script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/Figure4
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
+
+# Allow override via environment variable (set on the remote server)
+repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
+
 analyses_dir <- file.path(repo_root, "analyses")
 
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
@@ -62,8 +70,14 @@ nodes.annot$IsIndSp <- ifelse(
 # =============================================================================
 
 panel_A <- cowplot::as_grob(function() {
-  
-  par(mar = c(0, 0, 0, 10), xpd = FALSE)  
+
+  ## Right margin sized to fit the three legends placed at x = 1.2 in
+  ## plot coords. At cex 1.1 the longest legend texts (Habitat titles
+  ## like 'Reef_outer_slope') need ~2 in of horizontal real estate;
+  ## the previous mar = 10 lines (~1.5 in) let the legends spill past
+  ## the panel-A box and overlap onto panel B. mar = 16 lines
+  ## (~2.4 in) keeps them fully inside the right margin.
+  par(mar = c(0, 0, 0, 16), xpd = FALSE)
   
   plot(network,
        layout             = lay,
@@ -78,7 +92,7 @@ panel_A <- cowplot::as_grob(function() {
        asp                = FALSE,
        rescale            = TRUE,
        edge.arrow.size    = 0.3,
-       vertex.label.cex   = 0.5,
+       vertex.label.cex   = 0.7,
        vertex.label.dist  = V(network)$label.dist,
        vertex.label.font  = V(network)$label.font,
        vertex.label.color = V(network)$label.color
@@ -87,24 +101,24 @@ panel_A <- cowplot::as_grob(function() {
   # xpd = TRUE allows drawing outside the plot region into the margin
   par(xpd = TRUE)
   
-  legend(x = 1.2, y = 1,          
+  legend(x = 1.2, y = 1,
          legend = c("padj < 0.05", "padj >= 0.05"),
          col    = c("#782832", "gray80"),
-         pch    = 19, pt.cex = 1.0, bty = "n", cex = 0.8,
-         title  = "Node label (chi-sq)")
-  
+         pch    = 19, pt.cex = 1.4, bty = "n", cex = 1.1,
+         title  = "Node label (chi-sq)", title.font = 2, title.cex = 1.2)
+
   legend(x = 1.2, y = 0.7,
          legend = c("Shallow", "Middle", "Deep", "NS"),
          col    = c("#06d6a0", "#ffd166", "#25456B", "gray"),
-         pch    = 19, pt.cex = 1.0, bty = "n", cex = 0.8,
-         title  = "Zone (chi-sq PH)")
-  
+         pch    = 19, pt.cex = 1.4, bty = "n", cex = 1.1,
+         title  = "Zone (chi-sq PH)", title.font = 2, title.cex = 1.2)
+
   legend(x = 1.2, y = 0.4,
          legend = c("Indicator species", "Other"),
          col    = c("firebrick1", NA),
          pch    = 21, pt.bg = "gray80", pt.lwd = 2,
-         pt.cex = 1.0, bty = "n", cex = 0.8,
-         title  = "Node border")
+         pt.cex = 1.4, bty = "n", cex = 1.1,
+         title  = "Node border", title.font = 2, title.cex = 1.2)
   
   par(xpd = FALSE)
 })
@@ -142,19 +156,23 @@ panel_B <- ggplot(metrics_long, aes(x = IsIndSp, y = value, fill = IsIndSp)) +
     label   = "p.signif",
     label.x = 1.5,
     vjust   = -0.5,
-    size    = 5
+    size    = 7
   ) +
   
-  facet_wrap(~ metric, scales = "free_y", ncol = 2) +
-  
+  facet_wrap(~ metric, scales = "free_y", ncol = 1) +
+
   scale_fill_manual(values  = c("Non-Indicator" = "#7fbfff", "Indicator" = "#ff7f7f")) +
   scale_color_manual(values = c("Non-Indicator" = "#3a7fc1", "Indicator" = "#c13a3a")) +
-  
+
   labs(x = NULL, y = "Centrality Value", fill = NULL) +
-  
+
   theme_bw(base_size = 13) +
   theme(
-    strip.text       = element_text(face = "bold", size = 12),
+    strip.text       = element_text(face = "bold", size = 13),
+    axis.text        = element_text(size = 12),
+    axis.title       = element_text(size = 13),
+    legend.text      = element_text(size = 12),
+    legend.title     = element_text(size = 12),
     legend.position  = "bottom",
     panel.grid.minor = element_blank()
   )
@@ -170,9 +188,9 @@ pdf(file = out_pdf, width = 20, height = 12)
 cowplot::plot_grid(
   panel_A, panel_B,
   ncol           = 2,
-  rel_widths     = c(1.1, 0.9),
+  rel_widths     = c(4, 1),    # network panel now 80% of width
   labels         = c("A", "B"),
-  label_size     = 16,
+  label_size     = 24,         # was 16; bumped for readability
   label_fontface = "bold"
 )
 

@@ -9,7 +9,11 @@
 
 # -----------------------------------------------------------------------------
 # Commands to run the script (from repo root):
-# Rscript analyses/figures/Figure3/Figure3_code.R
+#   export REPO_ROOT="/data/projects/aime/analyses/seamount/metabarcoding/"
+#
+#   From REPO_ROOT, run the following commands:
+#
+#   Rscript analyses/figures/Figure3/Figure3_code.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
@@ -35,6 +39,10 @@ library(reshape2)
 script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
 script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/Figure3
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
+
+# Allow override via environment variable (set on the remote server)
+repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
+
 analyses_dir <- file.path(repo_root, "analyses")
 
 out_pdf <- file.path(script_dir, "Figure3.pdf")
@@ -240,27 +248,38 @@ plot1_data$taxa_type <- ifelse(
 )
 plot1_data$feature <- factor(plot1_data$feature, levels = feature_order)
 
+## Non-indicator cells filled white (was gray80) so they no longer
+## clash with the gray80 used to encode the terinter source in panels
+## B and D. Tile borders changed to gray70 so the white tiles remain
+## visible against the white panel background, and the legend swatch
+## inherits the same thin gray border.
 plot1 <- ggplot(plot1_data, aes(x = comparison, y = feature)) +
-  geom_tile(aes(fill = taxa_type), colour = "white", linewidth = 0.5) +
+  geom_tile(aes(fill = taxa_type), colour = "gray70", linewidth = 0.4) +
   scale_fill_manual(
-    name = NULL,
-    values = c("Indicator MOTU" = "black", "Non-indicator MOTU" = "gray80"),
+    name   = NULL,
+    values = c("Indicator MOTU" = "black", "Non-indicator MOTU" = "white"),
+    labels = c("Indicator MOTU" = "Selected as indicator MOTU",
+               "Non-indicator MOTU" = "Not selected"),
     limits = c("Indicator MOTU", "Non-indicator MOTU"),
-    guide = guide_legend(override.aes = list(colour = "black", linewidth = 0.5))
+    guide  = guide_legend(override.aes = list(colour = "gray70", linewidth = 0.4))
   ) +
   xlab("Comparison") +
   ylab("MOTUs") +
   theme_minimal() +
   theme(
     legend.position = "top",
-    legend.text = element_text(size = 13),
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size=14),
-    axis.text.y = element_text(size = 12),
+    legend.text = element_text(size = 17),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 18),
+    ## The 55 MOTU labels on the y-axis share ~15 in of vertical space
+    ## (panel A is 3/4 of PDF h=20). Size 20 (0.28 in/label) overlapped;
+    ## size 13 (0.18 in) leaves ~0.09 in margin per label -- readable
+    ## without overlap.
+    axis.text.y = element_text(size = 13),
     panel.grid = element_blank(),
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
-    panel.background = element_rect(fill = "gray95", colour = NA),
-    plot.title = element_text(face = "bold", size = 14)
+    axis.title.x = element_text(size = 20),
+    axis.title.y = element_text(size = 20),
+    panel.background = element_rect(fill = "white", colour = NA),
+    plot.title = element_text(face = "bold", size = 20)
   ) +
   scale_y_discrete(drop = FALSE)
 
@@ -270,8 +289,12 @@ featImp.df.filtered$sign <- factor(featImp.df.filtered$sign, levels=c("-1","1"))
 featImp.df.filtered$source <- factor(featImp.df.filtered$source, 
                                      levels=c("bininter","terinter"))
 
-source_colours <- c("bininter" = "black",
-                    "terinter" = "gray80")
+## Okabe-Ito colour-blind-safe pair, equally weighted so neither
+## source visually outranks the other (was black + gray80, which
+## made terinter read as a de-emphasised version of bininter even
+## though terinter was the stronger model in panel C).
+source_colours <- c("bininter" = "#0072B2",  # steel blue
+                    "terinter" = "#D55E00")  # dark vermillion
 
 plot2 <- ggplot(featImp.df.filtered, aes(x=feature, y=value)) +
   geom_hline(yintercept = min(0, featImp.df.filtered$value, na.rm = TRUE), col="gray") +
@@ -287,10 +310,10 @@ plot2 <- ggplot(featImp.df.filtered, aes(x=feature, y=value)) +
   guides(colour = "none", fill = "none") +
   theme_bw() + 
   theme(
-    strip.text.x = element_text(size=14),
+    strip.text.x = element_text(size = 18),
     axis.text.y = element_blank(),
     axis.title.y = element_blank(),
-    axis.title.x = element_text(size = 16),
+    axis.title.x = element_text(size = 20),
     strip.background = element_rect(fill = NA)
   )
 
@@ -306,10 +329,10 @@ plot3 <- ggplot(effsize.df.filtered, aes(x=feature, y=cdelta, fill=cdelta)) +
   coord_flip() + 
   theme_bw() + 
   theme(
-    strip.text.x = element_text(size=14),
+    strip.text.x = element_text(size = 18),
     axis.text.y = element_blank(),
     axis.title.y = element_blank(),
-    axis.title.x = element_text(size = 16),
+    axis.title.x = element_text(size = 20),
     strip.background = element_rect(fill = NA),
     legend.position = "none"
   )
@@ -363,7 +386,7 @@ plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_)) +
   ) +
   geom_text(data = model_counts,
             aes(x = comparison, y = Inf, label = label),
-            vjust = 1.5, size = 6, inherit.aes = FALSE) +
+            vjust = 1.5, size = 8, inherit.aes = FALSE) +
   scale_colour_manual("Source", values = source_colours) +
   stat_compare_means(
     method = "wilcox.test",
@@ -371,7 +394,7 @@ plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_)) +
     label = "p.signif",
     step.increase = 0.08,
     hide.ns = TRUE,
-    size = 7    
+    size = 9
   ) +
   scale_y_continuous(
     expand = expansion(mult = c(0.05, 0.15))
@@ -381,12 +404,13 @@ plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_)) +
   guides(colour = guide_legend(title = "Model"), size = "none") +
   theme_bw() +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 18),
+    axis.text.y = element_text(size = 18),
     strip.background = element_rect(fill = NA),
-    axis.title = element_text(size = 16),
+    axis.title = element_text(size = 20),
     legend.position = "bottom",
-    legend.text  = element_text(size = 16),
-    legend.title = element_text(size = 16)
+    legend.text  = element_text(size = 20),
+    legend.title = element_text(size = 20)
   )
 
 
@@ -472,18 +496,29 @@ adonis.alldf$source   <- factor(adonis.alldf$source,
 # Plot 5 - PERMANOVA results
 plot5 <- ggplot(adonis.alldf, aes(x = source, y = R2)) +
   geom_bar(stat = "identity", aes(fill = features)) +
-  geom_text(aes(label = pval.cat), size = 7, vjust = 0.1) +  
-  ylab("R2") +
+  geom_text(aes(label = pval.cat), size = 9, vjust = 0.1) +
+  ylab(expression(R^2)) +
   xlab("MOTUs set") +
-  scale_fill_viridis() +
+  scale_fill_viridis(
+    name = "# MOTUs in list",
+    guide = guide_colorbar(
+      barwidth  = unit(6, "cm"),
+      barheight = unit(0.4, "cm"),
+      title.position = "left",
+      title.hjust = 0.5,
+      title.vjust = 0.85
+    )
+  ) +
   facet_grid(. ~ comparison) +
   theme_bw() +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
-    strip.text.x = element_text(size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 18),
+    axis.text.y = element_text(size = 18),
+    strip.text.x = element_text(size = 18),
     legend.position = "bottom",
-    axis.title = element_text(size = 16),
-    legend.title = element_text(color = "black", size = 16, vjust = 0.9, margin = margin(r = 5))
+    legend.text = element_text(size = 14),
+    axis.title = element_text(size = 20),
+    legend.title = element_text(color = "black", size = 16, vjust = 0.85, margin = margin(r = 8))
   )
 
 
@@ -505,21 +540,25 @@ combined_plot <- patchwork::wrap_plots(plot.list, design = layout)+
 combined_plot_labeled <- combined_plot + 
   plot_annotation(
     title = "A",
-    theme = theme(plot.title = element_text(face = "bold", size = 16))
+    theme = theme(plot.title = element_text(face = "bold", size = 24))
   )
 
-plot4_labeled <- plot4 + 
-  ggtitle("B") + 
-  theme(plot.title = element_text(face = "bold", size = 16))
+plot4_labeled <- plot4 +
+  ggtitle("B") +
+  theme(plot.title = element_text(face = "bold", size = 24))
 
-plot5_labeled <- plot5 + 
-  ggtitle("C") + 
-  theme(plot.title = element_text(face = "bold", size = 16))
+plot5_labeled <- plot5 +
+  ggtitle("C") +
+  theme(plot.title = element_text(face = "bold", size = 24))
 
-# Wrap combined_plot1 as a grob so patchwork treats it as a single unit
+# Wrap combined_plot1 as a grob so patchwork treats it as a single unit.
+# - heights = c(3, 1) gives panel A 75% of the vertical so the 55 MOTU
+#   labels on the y-axis have comfortable spacing.
+# - widths = c(1, 1.5) makes panel B (AUC boxplot, only 3 boxplots) narrower
+#   so panel C (PERMANOVA, 3 facets each with 3 bars) gets more room.
 final_figure <- wrap_elements(full = patchworkGrob(combined_plot_labeled)) /
-  (plot4_labeled | plot5_labeled) +
-  plot_layout(heights = c(2, 1))
+  ((plot4_labeled | plot5_labeled) + plot_layout(widths = c(1, 2.5))) +
+  plot_layout(heights = c(3, 1))
 
 # Save the final figure to a PDF
 pdf(out_pdf, h = 20, w = 20)
