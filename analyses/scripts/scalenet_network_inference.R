@@ -2,9 +2,9 @@
 # Script name: scalenet_network_inference.R
 # Author: Estephe Kana & Edi Prifti & Eugeni Belda
 # Date created: 2025-08-26
-# Purpose: Reconstruct a co-presence network from eDNA data using ScaleNet, 
+# Purpose: Reconstruct a co-presence network from eDNA data using ScaleNet,
 #     and annotate the network with species' habitat preferences and indicator status.
-# Inputs: abundance_data_matrix, annotation data, predomics key species info
+# Inputs: SmX_pres_abs_matrix.rda (presence/absence data), annotation data, predomics key species info
 # Outputs: annotation_data.Rda
 # =====================================================================================
 
@@ -26,13 +26,12 @@ ecorr_percent <- as.numeric(args[1])
 # Check for required packages
 # Note: scalenet — contact authors or install from source
 #       momr     — remotes::install_github("eprifti/momr")
-required_pkgs <- c("vegan", "reshape2", "plyr", "scalenet", "chisq.posthoc.test", "igraph")
+required_pkgs <- c("reshape2", "plyr", "scalenet", "chisq.posthoc.test", "igraph")
 missing_pkgs  <- required_pkgs[!sapply(required_pkgs, requireNamespace, quietly = TRUE)]
 if (length(missing_pkgs) > 0)
   stop("Missing packages: ", paste(missing_pkgs, collapse = ", "))
 
 # Load required libraries
-library(vegan)
 library(reshape2)
 library(plyr)
 library(scalenet)
@@ -49,14 +48,14 @@ data_dir     <- file.path(repo_root, "data")
 analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
-# load dataset
-load(file.path(data_dir, "seamount_integrated_dataset.rda"))
+# load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
+load(file.path(data_dir, "SmX_pres_abs_matrix.rda"))
+rownames(SmX_pres_abs_matrix) <- SmX_pres_abs_matrix$Spygen
+meta_cols <- c("Spygen", "Habitat", "Zone", "hab_inoff")
+edna_presenceAbsence <- as.matrix(SmX_pres_abs_matrix[, !colnames(SmX_pres_abs_matrix) %in% meta_cols])
 
 # get samples filtered at 3% of prevalence of the total of samples
-filtered_edna_abundance <- get_sample_by_prevalence(t(sm$X), 3)
-
-# presence/absence table
-filtered_edna_presenceAbsence <- decostand(filtered_edna_abundance, method = "pa")
+filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, 3)
 
 # Function to compute chi-square + post-hoc
 compute_chisq_post_hoc <- function(df, group_var = "Zone") {
@@ -177,32 +176,28 @@ compute_chisq_post_hoc <- function(df, group_var = "Zone") {
 
 # Add Habitat info presence/absence matrix
 
-sample.info <- sm$sample_info
-sample.info$Zone <- ifelse(sample.info$Habitat %in% c("Bay","Lagoon","Reef_outer_slope", "Soft_back_reef"), "Shallow",
-                           ifelse(sample.info$Habitat %in% c("Summit50", "DeepSlope"), "Middle",
-                                  ifelse(sample.info$Habitat %in% c("Summit250", "Summit500"), "Deep",
-                                         NA)))
+sample.info <- SmX_pres_abs_matrix[, meta_cols]
 
 if (any(is.na(sample.info$Zone))) {
-  warning(paste("Unmatched habitats:", 
+  warning(paste("Unmatched habitats:",
                 paste(unique(sample.info$Habitat[is.na(sample.info$Zone)]), collapse=", ")))
 }
 table(sample.info$Habitat, sample.info$Zone)
 
-abund.df <- as.data.frame(t(filtered_edna_abundance))
-abund.df$species <- rownames(abund.df)
-abund.df <- reshape2::melt(abund.df, id.vars = "species")
-abund.df$presabs <- ifelse(abund.df$value>0,1,0)
-df.abund.sample.info <- merge(abund.df, sample.info[,c("Spygen","Zone", "Habitat")], by.x="variable", by.y="Spygen", all.x=TRUE)
+pa.df <- as.data.frame(t(filtered_edna_presenceAbsence))
+pa.df$species <- rownames(pa.df)
+pa.df <- reshape2::melt(pa.df, id.vars = "species")
+pa.df$presabs <- pa.df$value
+df.pa.sample.info <- merge(pa.df, sample.info[,c("Spygen","Zone", "Habitat")], by.x="variable", by.y="Spygen", all.x=TRUE)
 
 # Compute chisq + PH at zone level
-sp.chisq_posthoc <- compute_chisq_post_hoc(df.abund.sample.info)
+sp.chisq_posthoc <- compute_chisq_post_hoc(df.pa.sample.info)
 
 # rename fishes' name by replacing " " with .
 sp.chisq_posthoc$feature <- gsub(" ", ".", sp.chisq_posthoc$feature)
 
 # Compute chisq + PH at Habitat level
-sp.chisq_posthoc.habitat <- compute_chisq_post_hoc(df.abund.sample.info, group_var = "Habitat")
+sp.chisq_posthoc.habitat <- compute_chisq_post_hoc(df.pa.sample.info, group_var = "Habitat")
 
 # rename fishes' name by replacing " " with .
 sp.chisq_posthoc.habitat$feature <- gsub(" ", ".", sp.chisq_posthoc.habitat$feature)
@@ -246,7 +241,7 @@ load(file.path(analyses_dir, "analysis_outputs", "terinter_output_data", "terint
 indicSp_ter.df <- predout.bin.sub
 
 # remove loaded variables to avoid override
-rm(adonis_pred.bin, adonis_pred.maxn, predout.bin, predout.bin.sub, predout.maxn, predout.maxn.sub)
+rm(adonis_pred.bin, predout.bin, predout.bin.sub)
 
 # load indicator species for strat comparisons for bininter model
 load(file.path(analyses_dir, "analysis_outputs", "bininter_output_data", "bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda"))
@@ -255,7 +250,7 @@ load(file.path(analyses_dir, "analysis_outputs", "bininter_output_data", "binint
 indicSp_bin.df <- predout.bin.sub
 
 # remove loaded variables
-rm(adonis_pred.bin, adonis_pred.maxn, predout.bin, predout.bin.sub, predout.maxn, predout.maxn.sub)
+rm(adonis_pred.bin, predout.bin, predout.bin.sub)
 
 # select key species for each model
 keySpecies_bin <- indicSp_bin.df[indicSp_bin.df$IsIndSp==1, ]
@@ -418,15 +413,15 @@ V(network)$label.color <- ifelse(nodes.annot$padj_chisq < 0.05, "#782832", "gray
 V(network)$color       <- c("#06d6a0","#ffd166", "#25456B", "gray")[as.factor(factor(nodes.annot$assigned_class, levels=c("Shallow", "Middle", "Deep", "NS")))]
 
 habitat_colors <- c(
-  "Bay"              = "#5ae6ab",
-  "Lagoon"           = "#88d941",
-  "Soft_back_reef"   = "#2e7d00",
-  "Reef_outer_slope" = "#4e8273",
-  "Summit50"         = "#ffe699",
-  "DeepSlope"        = "#d79c3b",
-  "Summit250"        = "#4a6a94",
-  "Summit500"        = "#1a3250",
-  "NS"               = "gray"
+  "Bay"          = "#5ae6ab",
+  "Lagoon"       = "#88d941",
+  "BackReef"     = "#2e7d00",
+  "OuterSlope"   = "#4e8273",
+  "Seamount50"   = "#ffe699",
+  "DeepSlope150" = "#d79c3b",
+  "Seamount250"  = "#4a6a94",
+  "Seamount500"  = "#1a3250",
+  "NS"           = "gray"
 )
 
 V(network)$color.habitat <- habitat_colors[factor(nodes.annot$assigned_class.habitat,

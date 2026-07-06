@@ -42,7 +42,7 @@ dba <- merge(x = db, y = env[, -match(c("Site", "Habitat", "Depth", "Latitude", 
 
 # Rename sequences with OTU ids
 dba_annot <- unique(dba[, c("sequence", "new_scientific_name_ncbi", "SpeciesFB")])
-dba_annot$id <- paste0("OTU", sprintf("%03d", seq_len(nrow(dba_annot))), "_", dba_annot$new_scientific_name_ncbi)
+dba_annot$id <- paste0("MOTU", sprintf("%03d", seq_len(nrow(dba_annot))), "_", dba_annot$new_scientific_name_ncbi)
 
 dba <- merge(dba, dba_annot[, c("sequence", "id")], by = "sequence", all.x = TRUE)
 

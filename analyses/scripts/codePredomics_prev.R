@@ -3,8 +3,8 @@
 # Author: Estephe Kana & Eugeni Belda & Edi Prifti
 # Date created: 2025-12-10
 # Purpose: Run Predomics (bininter/terinter) pairwise habitat comparisons on
-#          eDNA abundance and presence/absence data filtered by prevalence.
-# Inputs:  data/seamount_integrated_dataset.rda
+#          eDNA presence/absence data filtered by prevalence.
+# Inputs:  data/SmX_pres_abs_matrix.rda
 # Outputs: analyses/analysis_outputs/<algorithm>_output_data/
 #            <algorithm>_Predomics_all_analyses_overall_data_<group>_prev_<N>.Rda
 # =============================================================================
@@ -60,29 +60,25 @@ data_dir     <- file.path(repo_root, "data")
 analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
-# load dataset
-load(file.path(data_dir, "seamount_integrated_dataset.rda"))
+# load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
+load(file.path(data_dir, "SmX_pres_abs_matrix.rda"))
+rownames(SmX_pres_abs_matrix) <- SmX_pres_abs_matrix$Spygen
+base_meta_cols <- c("Spygen", "Habitat", "Zone", "hab_inoff")
+edna_presenceAbsence <- as.matrix(SmX_pres_abs_matrix[, !colnames(SmX_pres_abs_matrix) %in% base_meta_cols])
 
-# get samples filtered at 3% of prevalence of the total of samples
-filtered_edna_abundance <- get_sample_by_prevalence(t(sm$X), prevalence_rate)
+# get samples filtered at the chosen prevalence rate
+filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, prevalence_rate)
 
-acc <- data.frame(filtered_edna_abundance)
-acc$Spygen <- unique(rownames(acc))
+acc <- data.frame(filtered_edna_presenceAbsence)
+acc$Spygen <- rownames(acc)
 
-# merge abundance table with sample info
-acc <- merge(acc, sm$sample_info[, c('Spygen','Site', 'Habitat', 'Station', 'Depth')],  by='Spygen', all.x = TRUE)
-
-# Add a new variable to seperate samples by Inshore/Offshore
-acc$hab_inoff <- ifelse(acc$Habitat %in% c('Bay', 'Lagoon', 'Reef_outer_slope', 'Soft_back_reef'), 'INSHORE', 'OFFSHORE')
-
-# Add a column to group 3 types of habitat
-acc$strat_group <- ifelse(acc$Habitat %in% c('Bay', 'Lagoon', 'Reef_outer_slope', 'Soft_back_reef'), 'Shallow',
-                    ifelse(acc$Habitat %in% c('Summit50', 'DeepSlope'), 'Middle',
-                           ifelse(acc$Habitat %in% c('Summit250', 'Summit500'), 'Deep', NA)))
+# merge presence/absence table with sample info (Zone/hab_inoff already derived from Habitat)
+acc <- merge(acc, SmX_pres_abs_matrix[, base_meta_cols], by = 'Spygen', all.x = TRUE)
 rownames(acc) <- acc$Spygen
 
-# rename Habitat variable to hab
+# rename Habitat/Zone to match the habitat-group variable names used below
 colnames(acc)[colnames(acc) == "Habitat"] <- "hab"
+colnames(acc)[colnames(acc) == "Zone"]    <- "strat_group"
 
 # define comparisons and variables for analysis based on chosen habitat group
 
@@ -94,13 +90,13 @@ if (habitat_group == "hab_inoff") {
   comp     <- combn(x=unique(acc$strat_group), m=2, simplify = FALSE)
 } else if (habitat_group == "Shallow"){
   hab_type <-"hab"
-  comp     <- combn(x=c('Bay', 'Lagoon', 'Reef_outer_slope', 'Soft_back_reef'), m = 2, simplify = FALSE)
+  comp     <- combn(x=c('Bay', 'Lagoon', 'OuterSlope', 'BackReef'), m = 2, simplify = FALSE)
 } else if (habitat_group == "Middle"){
   hab_type <- "hab"
-  comp     <- combn(x=c('DeepSlope', 'Summit50'), m = 2, simplify = FALSE)
+  comp     <- combn(x=c('DeepSlope150', 'Seamount50'), m = 2, simplify = FALSE)
 } else if (habitat_group == "Deep"){
   hab_type <- "hab"
-  comp     <- combn(x=c('Summit250', 'Summit500'), m = 2, simplify = FALSE)
+  comp     <- combn(x=c('Seamount250', 'Seamount500'), m = 2, simplify = FALSE)
 }else {
   stop("Invalid habitat group specified. Use 'hab_inoff' or 'group'.")
 }
@@ -114,7 +110,7 @@ prepare_data_for_analysis <- function(sample_data, habitat_type, hab1, hab2) {
   if (hab1 == hab2)
     stop("It seems that the habitats you entered are the same.")
 
-  meta_cols <- c('Spygen', 'Site', 'Station', 'Depth', 'hab', 'hab_inoff', 'strat_group')
+  meta_cols <- c('Spygen', 'hab', 'hab_inoff', 'strat_group')
 
   X <- sample_data[, !colnames(sample_data) %in% meta_cols, drop = FALSE]
   sample_X <- X[, colSums(X > 0) > 0, drop = FALSE]
@@ -235,163 +231,61 @@ save_pred_results <- function(results_pred, X, ilevels){
   return(save_results)
   
 }
-# compute permanova analysis
-permanova_analysis <- function(sample.info, sample.X, sample.class, results_pred, hab_type, ilevels, algorithm_language, data_type) {
-  
-  # Initialize a list to store results
-  adonis_pred <- list()
-  
-  if (data_type == "maxN") {
-    # Get features from FBM
-    fbm.species <- results_pred$FI_fmbFeats$summary$feature
-    
-    # Subset the abundance table to these species
-    subdf.features.df <- sample.X[, fbm.species]
-    
-    # Exclude samples with no species
-    subdf.features.df <- subdf.features.df[rowSums(subdf.features.df) > 0, ]
-    
-    # Get class according to rows of subdf.features.df
-    subdf.features.df.class <- sample.info[rownames(subdf.features.df),]
-    subdf.features.df.class <- ifelse(subdf.features.df.class[[hab_type]] == ilevels[[1]], -1,
-                                      ifelse(subdf.features.df.class[[hab_type]] == ilevels[[2]], 1, NA))
-    
-    # Check for any NA classes
-    na_indices <- which(is.na(subdf.features.df.class))
-    if (length(na_indices) > 0) {
-      warning(paste("NA classes found at indices:", paste(na_indices, collapse = ", ")))
-    }
-    
-    # Compute Bray-Curtis distances
-    subdf.features.df.bray <- vegdist(subdf.features.df, method = "bray")
-    
-    # Do the PERMANOVA with subset species
-    subdf.meta <- data.frame(sample = rownames(subdf.features.df), class = subdf.features.df.class)
-    set.seed(100)
-    subdf.features.df.bray.adonis <- adonis2(subdf.features.df.bray ~ class, data = subdf.meta)
-    
-    # Extract results
-    subdf.features.df.bray.adonis <- data.frame(subdf.features.df.bray.adonis)[1, , drop = FALSE]
-    subdf.features.df.bray.adonis$comparison <- paste(ilevels, collapse = "_")
-    subdf.features.df.bray.adonis$data <- "maxN"
-    subdf.features.df.bray.adonis$source <- paste0(algorithm_language, "Species")
-    subdf.features.df.bray.adonis$features <- ncol(subdf.features.df)
-    
-    # Compute Bray-Curtis distances for the entire community
-    ilevels.df.bray <- vegdist(sample.X, method = "bray")
-    alldf.meta <- data.frame(sample = rownames(sample.X), class = sample.class)
-    set.seed(100)
-    ilevels.df.bray.adonis <- adonis2(ilevels.df.bray ~ class, data = alldf.meta)
-    
-    # Extract results
-    ilevels.df.bray.adonis <- data.frame(ilevels.df.bray.adonis)[1, , drop = FALSE]
-    ilevels.df.bray.adonis$comparison <- paste(ilevels, collapse = "_")
-    ilevels.df.bray.adonis$data <- "maxN"
-    ilevels.df.bray.adonis$source <- paste("allSpecies", algorithm_language, sep = '_')
-    ilevels.df.bray.adonis$features <- ncol(sample.X)
-    
-    # Combine results
-    adonis_pred <- rbind(ilevels.df.bray.adonis, subdf.features.df.bray.adonis)
-    
-  } else if (data_type == "pres/abs") {
-    # Similar steps for presence/absence data
-    fbm.species <- results_pred$FI_fmbFeats$summary$feature
-    subdf.features.df <- sample.X[, fbm.species]
-    
-    # Exclude samples with no species
-    subdf.features.df <- subdf.features.df[rowSums(subdf.features.df) > 0, ]
-    
-    # Get class according to rows of subdf.features.df
-    subdf.features.df.class <- sample.info[rownames(subdf.features.df),]
-    subdf.features.df.class <- ifelse(subdf.features.df.class[[hab_type]] == ilevels[[1]], -1,
-                                      ifelse(subdf.features.df.class[[hab_type]] == ilevels[[2]], 1, NA))
-    
-    # Check for any NA classes
-    na_indices <- which(is.na(subdf.features.df.class))
-    if (length(na_indices) > 0) {
-      warning(paste("NA classes found at indices:", paste(na_indices, collapse = ", ")))
-    }
-    
-    # Compute Jaccard distances
-    subdf.features.df.jaccard <- vegdist(subdf.features.df, method = "jaccard", binary = TRUE)
-    
-    # Do the PERMANOVA with subset species
-    subdf.meta <- data.frame(sample = rownames(subdf.features.df), class = subdf.features.df.class)
-    set.seed(100)
-    subdf.features.df.jaccard.adonis <- adonis2(subdf.features.df.jaccard ~ class, data = subdf.meta)
-    
-    # Extract results
-    subdf.features.df.jaccard.adonis <- data.frame(subdf.features.df.jaccard.adonis)[1, , drop = FALSE]
-    subdf.features.df.jaccard.adonis$comparison <- paste(ilevels, collapse = "_")
-    subdf.features.df.jaccard.adonis$data <- "pres/abs"
-    subdf.features.df.jaccard.adonis$source <- paste0(algorithm_language, "Species")
-    subdf.features.df.jaccard.adonis$features <- ncol(subdf.features.df)
-    
-    # Compute Jaccard distances for the entire community
-    ilevels.df.jaccard <- vegdist(sample.X, method = "jaccard", binary = TRUE)
-    alldf.meta <- data.frame(sample = rownames(sample.X), class = sample.class) 
-    set.seed(100)
-    ilevels.df.jaccard.adonis <- adonis2(ilevels.df.jaccard ~ class, data = alldf.meta)
-    
-    # Extract results
-    ilevels.df.jaccard.adonis <- data.frame(ilevels.df.jaccard.adonis)[1, , drop = FALSE]
-    ilevels.df.jaccard.adonis$comparison <- paste(ilevels, collapse = "_")
-    ilevels.df.jaccard.adonis$data <- "pres/abs"
-    ilevels.df.jaccard.adonis$source <- paste("allSpecies", algorithm_language, sep = '_')
-    ilevels.df.jaccard.adonis$features <- ncol(sample.X)
-    
-    # Combine results
-    adonis_pred <- rbind(ilevels.df.jaccard.adonis, subdf.features.df.jaccard.adonis)
-  } else {
-    stop("Invalid data_type specified. Use 'maxN' or 'pres/abs'.")
+# compute permanova analysis on presence/absence data (Jaccard distances)
+permanova_analysis <- function(sample.info, sample.X, sample.class, results_pred, hab_type, ilevels, algorithm_language) {
+
+  # Get features from FBM
+  fbm.species <- results_pred$FI_fmbFeats$summary$feature
+
+  # Subset the presence/absence table to these species
+  subdf.features.df <- sample.X[, fbm.species]
+
+  # Exclude samples with no species
+  subdf.features.df <- subdf.features.df[rowSums(subdf.features.df) > 0, ]
+
+  # Get class according to rows of subdf.features.df
+  subdf.features.df.class <- sample.info[rownames(subdf.features.df),]
+  subdf.features.df.class <- ifelse(subdf.features.df.class[[hab_type]] == ilevels[[1]], -1,
+                                    ifelse(subdf.features.df.class[[hab_type]] == ilevels[[2]], 1, NA))
+
+  # Check for any NA classes
+  na_indices <- which(is.na(subdf.features.df.class))
+  if (length(na_indices) > 0) {
+    warning(paste("NA classes found at indices:", paste(na_indices, collapse = ", ")))
   }
-  
-  return(adonis_pred)
+
+  # Compute Jaccard distances
+  subdf.features.df.jaccard <- vegdist(subdf.features.df, method = "jaccard", binary = TRUE)
+
+  # Do the PERMANOVA with subset species
+  subdf.meta <- data.frame(sample = rownames(subdf.features.df), class = subdf.features.df.class)
+  set.seed(100)
+  subdf.features.df.jaccard.adonis <- adonis2(subdf.features.df.jaccard ~ class, data = subdf.meta)
+
+  # Extract results
+  subdf.features.df.jaccard.adonis <- data.frame(subdf.features.df.jaccard.adonis)[1, , drop = FALSE]
+  subdf.features.df.jaccard.adonis$comparison <- paste(ilevels, collapse = "_")
+  subdf.features.df.jaccard.adonis$data <- "pres/abs"
+  subdf.features.df.jaccard.adonis$source <- paste0(algorithm_language, "Species")
+  subdf.features.df.jaccard.adonis$features <- ncol(subdf.features.df)
+
+  # Compute Jaccard distances for the entire community
+  ilevels.df.jaccard <- vegdist(sample.X, method = "jaccard", binary = TRUE)
+  alldf.meta <- data.frame(sample = rownames(sample.X), class = sample.class)
+  set.seed(100)
+  ilevels.df.jaccard.adonis <- adonis2(ilevels.df.jaccard ~ class, data = alldf.meta)
+
+  # Extract results
+  ilevels.df.jaccard.adonis <- data.frame(ilevels.df.jaccard.adonis)[1, , drop = FALSE]
+  ilevels.df.jaccard.adonis$comparison <- paste(ilevels, collapse = "_")
+  ilevels.df.jaccard.adonis$data <- "pres/abs"
+  ilevels.df.jaccard.adonis$source <- paste("allSpecies", algorithm_language, sep = '_')
+  ilevels.df.jaccard.adonis$features <- ncol(sample.X)
+
+  # Combine results
+  rbind(ilevels.df.jaccard.adonis, subdf.features.df.jaccard.adonis)
 }
 
-
-print("##################### starting predomics analyses on data in abundance ###############################")
-
-####################
-## Analyses on abundance data (MaxN)
-####################
-
-predout.maxn <- list()
-adonis_pred.maxn <- list()
-
-for(i in 1:length(comp))
-{
-  # print(i)
-  ##Get the levels to compare
-  ilevels <- comp[[i]]
-  print(ilevels)
-  ##Get the data limited to the levels to compare
-  ilevels.df <- acc[acc[[hab_type]] %in% ilevels,]
-  # prepare data for analysis
-  data <- prepare_data_for_analysis(ilevels.df, habitat_type = hab_type, ilevels[[1]], ilevels[[2]])
-  # get elements returned
-  ilevels.df= data$sample.info
-  ilevels.df.X= data$sample.X
-  ilevels.df.class= data$sample.class
-
-  # compute predomics analysis
-  predomics_res_list= predomics_analysis(ilevels.df.X, ilevels.df.class, algorithm_language)
-
-  # save predomics results
-  predout.maxn[[paste(ilevels, collapse = "_")]] <- save_pred_results(predomics_res_list, ilevels.df.X, ilevels)
-  # Permanova analysis
-  adonis_pred.maxn[[paste(ilevels, collapse = "_")]] <- permanova_analysis(ilevels.df,ilevels.df.X, ilevels.df.class, predomics_res_list, hab_type = hab_type, ilevels, algorithm_language, data_type = "maxN")
-}
-
-##Get the pred_out table
-predout.maxn.sub <- lapply(predout.maxn, function(x){x[["pred_out_fbm"]]})
-for(i in names(predout.maxn.sub))
-{
-  predout.maxn.sub[[i]][,"comparison"] <- i
-}
-predout.maxn.sub <- do.call("rbind", predout.maxn.sub)
-predout.maxn.sub$source <- algorithm_language
-predout.maxn.sub$data <- "maxN"
 
 print("##################### starting predomics analyses on data in presence/absence ###############################")
 
@@ -416,8 +310,6 @@ for(i in 1:length(comp))
   # get elements returned
   ilevels.df= data$sample.info
   ilevels.df.X= data$sample.X
-  ##Transform on binary
-  ilevels.df.X <- as.data.frame(apply(ilevels.df.X, 2, function(x){ifelse(x==0,0,1)}))
   ilevels.df.class= data$sample.class
 
   # compute predomics analysis
@@ -426,7 +318,7 @@ for(i in 1:length(comp))
   # save predomics results
   predout.bin[[paste(ilevels, collapse = "_")]] <- save_pred_results(predomics_res_list, ilevels.df.X, ilevels)
   # Permanova analysis
-  adonis_pred.bin[[paste(ilevels, collapse = "_")]] <- permanova_analysis(ilevels.df,ilevels.df.X, ilevels.df.class, predomics_res_list, hab_type = hab_type, ilevels, algorithm_language, data_type = "pres/abs")
+  adonis_pred.bin[[paste(ilevels, collapse = "_")]] <- permanova_analysis(ilevels.df,ilevels.df.X, ilevels.df.class, predomics_res_list, hab_type = hab_type, ilevels, algorithm_language)
 }
 
 ##Get the pred_out table
@@ -451,12 +343,9 @@ if (!dir.exists(save_path)) {
 # Define the filename  
 filename <- paste(save_path, paste(algorithm_language, "Predomics_all_analyses_overall_data", habitat_group, "prev", paste0(prevalence_rate,".Rda"), sep = "_"), sep = "/") 
 
-save(adonis_pred.bin, #adonis results all comparisons; binary data
-     adonis_pred.maxn, # adonis results all comparisons; abudnance data
-     predout.bin, # indval results all comparisons, abundance data
-     predout.maxn,
-     predout.bin.sub,
-     predout.maxn.sub, file = filename)
+save(adonis_pred.bin, #adonis results all comparisons; presence/absence data
+     predout.bin, # indval results all comparisons, presence/absence data
+     predout.bin.sub, file = filename)
 
 # Print the successful message
 message(paste("Analysis is successfully completed and results are saved to:", filename))
