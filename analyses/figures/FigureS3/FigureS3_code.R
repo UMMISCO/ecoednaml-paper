@@ -14,7 +14,11 @@
 
 # -----------------------------------------------------------------------------
 # Commands to run the script (from repo root):
-# Rscript analyses/figures/FigureS3/FigureS3_code.R
+#   export REPO_ROOT="/data/projects/aime/analyses/seamount/metabarcoding/"
+#
+#   From REPO_ROOT, run the following commands:
+#
+#   Rscript analyses/figures/FigureS3/FigureS3_code.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
@@ -37,6 +41,10 @@ library(gridExtra)
 script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
 script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/FigureS3
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
+
+# Allow override via environment variable (set on the remote server)
+repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
+
 analyses_dir <- file.path(repo_root, "analyses")
 
 out_dir         <- script_dir
@@ -81,6 +89,14 @@ cluster_order_70 <- c("Cluster_07", "Cluster_10", "Cluster_13", "Cluster_14",
                       "Cluster_02", "Cluster_05", "Cluster_09", "Cluster_11",
                       "Cluster_03", "Cluster_08", "Cluster_16", "Cluster_20",
                       "Cluster_21", "Cluster_12", "Cluster_17", "Cluster_18")
+
+# Cluster order for ecorr > 0.6 (was 0.55; reverted) is left empty;
+# the alluvial panel
+# helper computes it dynamically via intersect(cluster_order,
+# present_modules) U sort(extras), so passing an empty seed simply
+# falls back to the sorted natural order of the modules detected at
+# this threshold.
+cluster_order_60 <- character(0)
 
 # =============================================================================
 # LOAD DATA
@@ -228,6 +244,9 @@ net50$node_df <- net50$node_df %>%
 net50$modularity <- igraph::modularity(fg50_ref)
 net50$n_modules  <- length(unique(fg50_ref_df$Module))
 
+message("Building network at ecorr > 0.6 ...")
+net60 <- build_threshold_network(edges.all, 0.6, zone_df, habitat_df, feat_summary)
+
 message("Building network at ecorr > 0.7 ...")
 net70 <- build_threshold_network(edges.all, 0.7, zone_df, habitat_df, feat_summary)
 
@@ -270,7 +289,7 @@ make_network_panel <- function(net_obj, threshold_label, panel_label,
          rescale            = TRUE)
     
     mtext(panel_label,
-          side = 3, line = 0.5, adj = 0.02, cex = 1.5, font = 2)
+          side = 3, line = 0.5, adj = 0.02, cex = 3, font = 2)
     # mtext(
     #   sprintf("ecorr > %s  |  %d nodes  |  %d edges  |  modularity_score = %.3f | %d modules",
     #           threshold_label, net_obj$n_nodes, net_obj$n_edges, net_obj$modularity, net_obj$n_modules),
@@ -279,26 +298,63 @@ make_network_panel <- function(net_obj, threshold_label, panel_label,
   })
 }
 
-panel_A <- make_network_panel(net30, "0.3", "A", zone_pal, sp.chisq_zone)
-panel_B <- make_network_panel(net50, "0.5", "B", zone_pal, sp.chisq_zone)
-panel_C <- make_network_panel(net70, "0.7", "C", zone_pal, sp.chisq_zone)
+## Per-threshold panel rename to match the new 4-row x 4-column layout:
+##   row 1 (ecorr > 0.3)  -> A network | B centrality | C alluvial | D degree
+##   row 2 (ecorr > 0.5)  -> E         | F            | G          | H
+##   row 3 (ecorr > 0.6) -> I         | J            | K          | L
+##   row 4 (ecorr > 0.7)  -> M         | N            | O          | P
+##
+## 0.6 is used as the 4th threshold for the round-number sensitivity
+## scan readable progression (0.3, 0.5, 0.6, 0.7). A fine-grained scan
+## (0.30-0.85 step 0.05) showed that the best scale-free fit (highest
+## log-log R^2 = 0.91, gamma = 2.09) is reached at ecorr ~ 0.55, just
+## inside the 0.5-0.6 interval; the manuscript caption states this
+## explicitly so a reader doesn't have to interpolate it from the
+## panels.
+panel_A <- make_network_panel(net30, "0.3",  "A", zone_pal, sp.chisq_zone)
+panel_E <- make_network_panel(net50, "0.5",  "E", zone_pal, sp.chisq_zone)
+panel_I <- make_network_panel(net60, "0.6", "I", zone_pal, sp.chisq_zone)
+panel_M <- make_network_panel(net70, "0.7",  "M", zone_pal, sp.chisq_zone)
 
 # Standalone zone and habitat legends
+## Legends now live in a single shared bottom row. Each legend uses
+## guide_legend(title.position = "top", title.hjust = 0) so the
+## title 'Zone' / 'Indicator status' / 'Habitat' sits on a line of
+## its own above the colour chips, rather than next to them where it
+## was overlapping the chips at the chosen font sizes.
 zone_legend_plot <- ggplot(
   data.frame(Zone = factor(names(zone_pal), levels = names(zone_pal))),
   aes(x = 1, y = Zone, fill = Zone)
 ) +
   geom_tile() +
-  scale_fill_manual("Zone (Chi-sq PH)", values = zone_pal) +
+  scale_fill_manual("Zone", values = zone_pal) +
   theme_void() +
   theme(
-    legend.position = "left",
-    legend.title    = element_text(size = 12, face = "bold"),
-    legend.text     = element_text(size = 11),
-    legend.key.size = unit(0.55, "cm")
-  )
+    legend.position = "bottom",
+    legend.title    = element_text(size = 28, face = "bold"),
+    legend.text     = element_text(size = 24),
+    legend.key.size = unit(1.2, "cm"),
+    legend.margin   = margin(t = 10, b = 10)
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0))
 
-zone_legend_grob <- cowplot::get_legend(zone_legend_plot)
+## Extract the legend grob directly from the plot's gtable. cowplot's
+## get_legend / get_plot_component were inconsistent across versions
+## here -- some returned an empty zeroGrob, others returned the chip
+## strip without the title text. Walking the gtable layout for any
+## name matching 'guide-box*' is the robust path.
+get_legend_safe <- function(p) {
+  g  <- ggplot2::ggplotGrob(p)
+  ix <- grep("guide-box", g$layout$name)
+  if (length(ix) == 0) return(grid::nullGrob())
+  for (i in ix) {
+    candidate <- g$grobs[[i]]
+    if (!inherits(candidate, "zeroGrob")) return(candidate)
+  }
+  g$grobs[[ix[1]]]
+}
+
+zone_legend_grob <- get_legend_safe(zone_legend_plot)
 
 habitat_legend_plot <- ggplot(
   data.frame(Habitat = factor(names(alluvial_habitat_colors), levels = names(alluvial_habitat_colors))),
@@ -308,12 +364,15 @@ habitat_legend_plot <- ggplot(
   scale_fill_manual("Habitat", values = alluvial_habitat_colors) +
   theme_void() +
   theme(
-    legend.position = "left",
-    legend.title    = element_text(size = 12, face = "bold"),
-    legend.text     = element_text(size = 11),
-    legend.key.size = unit(0.55, "cm")
-  )
-habitat_legend_grob <- cowplot::get_legend(habitat_legend_plot)
+    legend.position      = "bottom",
+    legend.justification = "left",  # left-align in its row-allocated slot
+    legend.title         = element_text(size = 28, face = "bold"),
+    legend.text          = element_text(size = 24),
+    legend.key.size      = unit(1.2, "cm"),
+    legend.margin        = margin(t = 10, b = 10)
+  ) +
+  guides(fill = guide_legend(ncol = 3, title.position = "top", title.hjust = 0))
+habitat_legend_grob <- get_legend_safe(habitat_legend_plot)
 
 # =============================================================================
 # PANELS D / E / F — Centrality boxplots: indicator vs non-indicator per threshold
@@ -335,8 +394,8 @@ make_boxplot_panel <- function(net_obj, threshold_label, panel_label, show_legen
     ) %>%
     dplyr::mutate(
       metric = dplyr::recode(metric,
-                             degr_cent = "Degree Centrality",
-                             betw_cent = "Betweenness Centrality")
+                             degr_cent = "Degree",
+                             betw_cent = "Betweenness")
     )
   
   p <- ggplot(metrics_long, aes(x = IsIndSp, y = value, fill = IsIndSp)) +
@@ -346,13 +405,20 @@ make_boxplot_panel <- function(net_obj, threshold_label, panel_label, show_legen
     geom_jitter(aes(color = IsIndSp), width = 0.08, size = 1.2,
                 alpha = 0.5, show.legend = FALSE) +
     ggpubr::stat_compare_means(
-      method  = "wilcox.test",
-      label   = "p.signif",
-      label.x = 1.5,
-      vjust   = -0.5,
-      size    = 5
+      method      = "wilcox.test",
+      label       = "p.signif",
+      label.x     = 1.5,
+      ## label.y.npc anchors the significance mark to 90% of the plot
+      ## panel's vertical extent so it sits inside the data area (high
+      ## up but clearly below the facet strip band that names
+      ## 'Betweenness' / 'Degree'). The previous vjust = -0.5 pushed
+      ## the mark right against the top edge, so '***' / 'ns' was
+      ## visually touching or sitting under the strip text.
+      label.y.npc = 0.90,
+      size        = 12
     ) +
     facet_wrap(~ metric, scales = "free_y", ncol = 2) +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.18))) +
     scale_fill_manual(values  = c("Non-Indicator" = "#7fbfff", "Indicator" = "#ff7f7f")) +
     scale_color_manual(values = c("Non-Indicator" = "#3a7fc1", "Indicator" = "#c13a3a")) +
     labs(
@@ -360,23 +426,48 @@ make_boxplot_panel <- function(net_obj, threshold_label, panel_label, show_legen
       y        = "Centrality Value",
       fill     = NULL,
       title    = panel_label,
-      # subtitle = sprintf("ecorr > %s  |  %d nodes", threshold_label, net_obj$n_nodes)
     ) +
-    theme_bw(base_size = 13) +
+    theme_bw(base_size = 26) +
     theme(
-      strip.text       = element_text(face = "bold", size = 12),
-      legend.position  = "right",
+      strip.text       = element_text(face = "bold", size = 26),
+      axis.text.x      = element_text(size = 18, angle = 30, hjust = 1),
+      axis.text.y      = element_text(size = 22),
+      axis.title       = element_text(size = 26),
+      legend.position  = "bottom",
+      legend.text      = element_text(size = 22),
+      legend.title     = element_text(size = 24),
       panel.grid.minor = element_blank(),
-      plot.title       = element_text(face = "bold", hjust = 0, size = 16),
-      # plot.subtitle    = element_text(size = 14, colour = "grey30")
+      plot.title       = element_text(face = "bold", hjust = 0, size = 32),
     )
   if (!show_legend) p <- p + theme(legend.position = "none")
   p
 }
 
-panel_D <- make_boxplot_panel(net30, "0.3", "D", show_legend = FALSE)
-panel_E <- make_boxplot_panel(net50, "0.5", "E", show_legend = FALSE)
-panel_F <- make_boxplot_panel(net70, "0.7", "F", show_legend = TRUE)
+## Centrality violins are column 2 of each row:
+##   B (ecorr 0.3) / F (ecorr 0.5) / J (ecorr 0.6) / N (ecorr 0.7).
+panel_B <- make_boxplot_panel(net30, "0.3",  "B", show_legend = FALSE)
+panel_F <- make_boxplot_panel(net50, "0.5",  "F", show_legend = FALSE)
+panel_J <- make_boxplot_panel(net60, "0.6", "J", show_legend = FALSE)
+panel_N <- make_boxplot_panel(net70, "0.7",  "N", show_legend = FALSE)
+
+indic_legend_plot <- ggplot(
+  data.frame(IsIndSp = factor(c("Non-Indicator", "Indicator"),
+                              levels = c("Non-Indicator", "Indicator"))),
+  aes(x = 1, y = IsIndSp, fill = IsIndSp)
+) +
+  geom_tile() +
+  scale_fill_manual("Indicator status",
+                    values = c("Non-Indicator" = "#7fbfff", "Indicator" = "#ff7f7f")) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    legend.title    = element_text(size = 28, face = "bold"),
+    legend.text     = element_text(size = 24),
+    legend.key.size = unit(1.2, "cm"),
+    legend.margin   = margin(t = 10, b = 10)
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0))
+indic_legend_grob <- get_legend_safe(indic_legend_plot)
 
 # =============================================================================
 # PANEL G
@@ -408,42 +499,53 @@ make_topology_panel <- function(net_list, threshold_labels, panel_label) {
   
   ggplot(topo_df, aes(x = threshold, y = value, group = 1)) +
     geom_line(color = "grey60", linewidth = 0.9, linetype = "dashed") +
-    geom_point(fill="grey70" ,shape = 21, size = 5, color = "grey30", stroke = 0.8) +
+    geom_point(fill="grey70" ,shape = 21, size = 7, color = "grey30", stroke = 1) +
     geom_text(
       aes(label = ifelse(metric == "Modularity",
                          sprintf("%.3f", value),
                          as.character(as.integer(value)))),
-      vjust = -1.4, size = 3.8, fontface = "bold", color = "grey20"
+      vjust = -1.4, size = 8, fontface = "bold", color = "grey20"
     ) +
     facet_wrap(~ metric, scales = "free_y", ncol = 4) +
-    scale_y_continuous(expand = expansion(mult = c(0.12, 0.25))) +
-    # scale_x_discrete(labels = function(x) paste0("ecorr > ", x)) +
+    ## Top expansion bumped 0.25 -> 0.55 because the per-point value
+    ## labels (vjust = -1.4) were getting clipped by the facet strip
+    ## band on the highest data point (e.g. 318 nodes at ecorr > 0.3).
+    scale_y_continuous(expand = expansion(mult = c(0.12, 0.55))) +
     labs(
       x     = "ecorr_threshold",
       y     = "Topology_value",
       title = panel_label
     ) +
-    theme_bw(base_size = 12) +
+    theme_bw(base_size = 26) +
     theme(
-      strip.text       = element_text(face = "bold", size = 12),
+      strip.text       = element_text(face = "bold", size = 26),
       strip.background = element_rect(fill = "grey92"),
       panel.grid.minor = element_blank(),
       panel.grid.major.x = element_blank(),
-      axis.text.x      = element_text(face = "bold", size = 11),
-      axis.text.y      = element_text(size = 10),
-      plot.title       = element_text(face = "bold", hjust = 0, size = 16),
+      axis.text.x      = element_text(face = "bold", size = 22),
+      axis.text.y      = element_text(size = 20),
+      axis.title       = element_text(size = 26),
+      plot.title       = element_text(face = "bold", hjust = 0, size = 32),
       plot.margin      = margin(t = 5, r = 15, b = 10, l = 5)
     )
 }
 
-panel_G <- make_topology_panel(
-  net_list         = list("0.3" = net30, "0.5" = net50, "0.7" = net70),
-  threshold_labels = c("0.3", "0.5", "0.7"),
-  panel_label      = "G"
+## Topology summary panel reinstated as panel Q at the bottom of the
+## figure (just above the legend row). The per-threshold degree
+## distributions (D / H / L / P) carry the qualitative story, but the
+## summary line plot is a useful single-glance reference showing how
+## the four scalar topology metrics (n_nodes / n_edges / n_modules /
+## modularity) co-vary with the ecorr threshold across the four sampled
+## values.
+panel_Q <- make_topology_panel(
+  net_list         = list("0.3"  = net30, "0.5"  = net50,
+                          "0.6" = net60, "0.7"  = net70),
+  threshold_labels = c("0.3", "0.5", "0.6", "0.7"),
+  panel_label      = "Q"
 )
 
 # =============================================================================
-# PANELS H / I / J — Zone → Module → Habitat alluvial per threshold
+# PANELS C / G / K — Zone → Module → Habitat alluvial per threshold
 # =============================================================================
 
 make_alluvial_panel <- function(net_obj, threshold_label, panel_label,
@@ -498,8 +600,8 @@ make_alluvial_panel <- function(net_obj, threshold_label, panel_label,
     ) +
     ggplot2::geom_text(
       stat          = ggalluvial::StatStratum,
-      aes(label     = after_stat(stratum)),
-      size          = 2.8,
+      aes(label     = sub("^Cluster_", "", as.character(after_stat(stratum)))),
+      size          = 6,
       lineheight    = 1.3,
       fontface      = "bold",
       color         = "grey20",
@@ -516,20 +618,19 @@ make_alluvial_panel <- function(net_obj, threshold_label, panel_label,
       drop     = FALSE
     ) +
     scale_y_continuous(name = "MOTUs", expand = c(0, 0)) +
-    theme_minimal(base_size = 12) +
+    theme_minimal(base_size = 24) +
     theme(
-      axis.text.x     = element_text(size = 12, face = "bold"),
+      axis.text.x     = element_text(size = 24, face = "bold"),
       axis.text.y     = element_blank(),
       axis.ticks.y    = element_blank(),
       axis.title.x    = element_blank(),
-      axis.title.y    = element_text(size = 11, face = "bold"),
+      axis.title.y    = element_text(size = 24, face = "bold"),
       panel.grid      = element_blank(),
-      legend.title    = element_text(size = 16, face = "bold"),
-      legend.text     = element_text(size = 9),
-      legend.key.size = unit(0.45, "cm"),
+      legend.title    = element_text(size = 26, face = "bold"),
+      legend.text     = element_text(size = 22),
+      legend.key.size = unit(1.1, "cm"),
       legend.position = if (show_legend) "right" else "none",
-      plot.title      = element_text(face = "bold", hjust = 0, size = 16),
-      # plot.subtitle   = element_text(size = 14, colour = "grey30"),
+      plot.title      = element_text(face = "bold", hjust = 0, size = 32),
       plot.margin     = margin(t = 10, r = 10, b = 10, l = 10)
     ) +
     labs(
@@ -539,12 +640,85 @@ make_alluvial_panel <- function(net_obj, threshold_label, panel_label,
     )
 }
 
-panel_H <- make_alluvial_panel(net30, "0.3", "H", sp.chisq_zone, sp.chisq_habitat,
+## Alluvials are column 3 of each row:
+##   C (ecorr 0.3) / G (ecorr 0.5) / K (ecorr 0.6) / O (ecorr 0.7).
+panel_C <- make_alluvial_panel(net30, "0.3",  "C", sp.chisq_zone, sp.chisq_habitat,
                                cluster_order_30, show_legend = FALSE)
-panel_I <- make_alluvial_panel(net50, "0.5", "I", sp.chisq_zone, sp.chisq_habitat,
+panel_G <- make_alluvial_panel(net50, "0.5",  "G", sp.chisq_zone, sp.chisq_habitat,
                                cluster_order_50, show_legend = FALSE)
-panel_J <- make_alluvial_panel(net70, "0.7", "J", sp.chisq_zone, sp.chisq_habitat,
+panel_K <- make_alluvial_panel(net60, "0.6", "K", sp.chisq_zone, sp.chisq_habitat,
+                               cluster_order_60, show_legend = FALSE)
+panel_O <- make_alluvial_panel(net70, "0.7",  "O", sp.chisq_zone, sp.chisq_habitat,
                                cluster_order_70, show_legend = FALSE)
+
+# =============================================================================
+# PANELS D / H / L — Degree distribution (scale-free check) per threshold
+# =============================================================================
+
+make_degree_dist_panel <- function(net_obj, threshold_label, panel_label) {
+
+  deg     <- igraph::degree(net_obj$graph)
+  deg_tab <- as.data.frame(table(deg), stringsAsFactors = FALSE)
+  deg_tab$k    <- as.integer(deg_tab$deg)
+  deg_tab$P    <- deg_tab$Freq / sum(deg_tab$Freq)
+
+  ## Power-law reference line: fit log(P) = -gamma * log(k) + c on the
+  ## right tail (k >= 2) and overlay as a dashed grey line so a reader
+  ## can eye-check how close the empirical points lie to the
+  ## scale-free expectation at each threshold.
+  fit_df <- deg_tab[deg_tab$k >= 2 & deg_tab$P > 0, ]
+  if (nrow(fit_df) >= 3) {
+    fit   <- lm(log10(P) ~ log10(k), data = fit_df)
+    gamma <- -coef(fit)[["log10(k)"]]
+    intercept_c <- coef(fit)[["(Intercept)"]]
+    line_df <- data.frame(
+      k = 10 ^ seq(log10(min(deg_tab$k[deg_tab$k > 0])),
+                   log10(max(deg_tab$k)),
+                   length.out = 100)
+    )
+    line_df$P <- 10 ^ (intercept_c + log10(line_df$k) * coef(fit)[["log10(k)"]])
+    gamma_label <- sprintf("gamma ~ %.2f", gamma)
+  } else {
+    line_df     <- NULL
+    gamma_label <- ""
+  }
+
+  p <- ggplot(deg_tab, aes(x = k, y = P)) +
+    geom_point(size = 4, color = "#1F4E79", alpha = 0.8) +
+    scale_x_log10() +
+    scale_y_log10()
+
+  if (!is.null(line_df)) {
+    p <- p + geom_line(data = line_df, aes(x = k, y = P),
+                       linetype = "dashed", color = "grey50", linewidth = 0.7)
+  }
+
+  p +
+    annotate("text",
+             x     = max(deg_tab$k),
+             y     = max(deg_tab$P),
+             label = gamma_label,
+             hjust = 1, vjust = 1, size = 9, fontface = "bold",
+             color = "grey25") +
+    labs(
+      x     = "Degree k (log scale)",
+      y     = "P(k) (log scale)",
+      title = panel_label
+    ) +
+    theme_bw(base_size = 26) +
+    theme(
+      panel.grid.minor   = element_blank(),
+      axis.text          = element_text(size = 22),
+      axis.title         = element_text(size = 26),
+      plot.title         = element_text(face = "bold", hjust = 0, size = 32),
+      plot.margin        = margin(t = 10, r = 15, b = 10, l = 10)
+    )
+}
+
+panel_D <- make_degree_dist_panel(net30, "0.3",  "D")
+panel_H <- make_degree_dist_panel(net50, "0.5",  "H")
+panel_L <- make_degree_dist_panel(net60, "0.6", "L")
+panel_P <- make_degree_dist_panel(net70, "0.7",  "P")
 
 # =============================================================================
 # COMPOSE & SAVE
@@ -552,46 +726,73 @@ panel_J <- make_alluvial_panel(net70, "0.7", "J", sp.chisq_zone, sp.chisq_habita
 
 message("Composing figure ...")
 
-# Row 1 — networks + alluvials combined per threshold, with shared legends on right
+## Layout: 4 rows (one per ecorr threshold) of 4 data panels each,
+## then a topology summary line plot Q spanning the full width, then
+## a final bottom row with all three legends consolidated.
+##
+##   row 1 (ecorr > 0.3): A network | B centrality | C alluvial | D degree
+##   row 2 (ecorr > 0.5): E         | F            | G          | H
+##   row 3 (ecorr > 0.6): I        | J            | K          | L
+##   row 4 (ecorr > 0.7): M         | N            | O          | P
+##   row 5 (legends):     zone      | indicator    | habitat (2 cols wide)
+##   row 6 (summary):     Q (nodes / edges / modules / modularity vs threshold)
+
 row1 <- gridExtra::arrangeGrob(
-  panel_A, panel_B, panel_C, zone_legend_grob,
-  ncol   = 4,
-  widths = c(1, 1, 1, 0.25)
-)
-
-# Row 2 — centrality boxplots: indicator vs non-indicator (D / E / F)
-# nullGrob() pads the 4th column so widths match rows 1 and 4
-row2 <- gridExtra::arrangeGrob(
+  panel_A,
+  ggplotGrob(panel_B),
+  ggplotGrob(panel_C),
   ggplotGrob(panel_D),
-  ggplotGrob(panel_E),
+  ncol   = 4,
+  widths = c(1, 1, 1, 1)
+)
+
+row2 <- gridExtra::arrangeGrob(
+  panel_E,
   ggplotGrob(panel_F),
-  grid::nullGrob(),
-  ncol   = 4,
-  widths = c(1, 1, 1, 0.1)
-)
-
-# Row 3 — topology metrics (G), spans all 3 data columns + null legend column
-row3 <- gridExtra::arrangeGrob(
   ggplotGrob(panel_G),
-  grid::nullGrob(),
-  ncol   = 2,
-  widths = c(3, 0.26)
-)
-
-# Row 4 — Zone → Module → Habitat alluvial per threshold (H / I / J)
-row4 <- gridExtra::arrangeGrob(
   ggplotGrob(panel_H),
-  ggplotGrob(panel_I),
-  ggplotGrob(panel_J),
-  habitat_legend_grob,
   ncol   = 4,
-  widths = c(1, 1, 1, 0.25)
+  widths = c(1, 1, 1, 1)
 )
 
+row3 <- gridExtra::arrangeGrob(
+  panel_I,
+  ggplotGrob(panel_J),
+  ggplotGrob(panel_K),
+  ggplotGrob(panel_L),
+  ncol   = 4,
+  widths = c(1, 1, 1, 1)
+)
+
+row4 <- gridExtra::arrangeGrob(
+  panel_M,
+  ggplotGrob(panel_N),
+  ggplotGrob(panel_O),
+  ggplotGrob(panel_P),
+  ncol   = 4,
+  widths = c(1, 1, 1, 1)
+)
+
+## Bottom legend row: habitat gets two slots because it has 9 entries
+## (laid out 3 cols x 3 rows in the legend) while zone (4 entries)
+## and indicator (2 entries) fit comfortably in one slot each.
+legend_row <- gridExtra::arrangeGrob(
+  zone_legend_grob,
+  indic_legend_grob,
+  habitat_legend_grob,
+  ncol   = 3,
+  widths = c(1, 1, 2)
+)
+
+## Canvas stretched vertically to fit the 4 data rows + legend row +
+## Q summary at the bottom: 28 wide x 31 tall.
 pdf(file.path(out_dir, "FigureS3.pdf"),
-    width = 30, height = 38)
+    width = 28, height = 31)
 gridExtra::grid.arrange(row1, row2, row3, row4,
-                        nrow = 4, heights = c(1.2, 0.9, 0.6, 1.1))
+                        legend_row,
+                        ggplotGrob(panel_Q),
+                        nrow    = 6,
+                        heights = c(1, 1, 1, 1, 0.32, 0.75))
 dev.off()
 
 message("Done — FigureS3 saved to: ", out_dir)

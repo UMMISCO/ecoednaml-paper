@@ -10,13 +10,18 @@
 
 # -----------------------------------------------------------------------------
 # Commands to run the script (from repo root):
-# Rscript analyses/figures/Figure5/Figure5_code.R
+#   export REPO_ROOT="/data/projects/aime/analyses/seamount/metabarcoding/"
+#   export DATA_DIR="/data/projects/aime/data/seamount/metabarcoding"
+#
+#   From REPO_ROOT, run the following commands:
+#
+#   Rscript analyses/figures/Figure5/Figure5_code.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
 # Note: piano — BiocManager::install("piano")
 required_pkgs <- c("igraph", "ggplot2", "dplyr", "tidyr", "cowplot",
-                   "ggalluvial", "piano", "gridExtra")
+                   "ggalluvial", "ggrepel", "piano", "gridExtra")
 missing_pkgs  <- required_pkgs[!sapply(required_pkgs, requireNamespace, quietly = TRUE)]
 if (length(missing_pkgs) > 0)
   stop("Missing packages: ", paste(missing_pkgs, collapse = ", "))
@@ -27,6 +32,7 @@ library(dplyr)
 library(tidyr)
 library(cowplot)
 library(ggalluvial)
+library(ggrepel)
 library(piano)
 library(gridExtra)
 
@@ -39,6 +45,11 @@ script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(tra
 script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/Figure5
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 data_dir     <- file.path(repo_root, "data")
+
+# Allow override via environment variable (set on the remote server)
+repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
+data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
+
 analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
@@ -299,28 +310,28 @@ panel_A <- cowplot::as_grob(function() {
         padj  = 2.5)  
   
   par(xpd = TRUE)
-  
-  legend(x = 1.1, y = 1.1,
+
+  legend(x = 1.1, y = 1.15,
          legend = c("padj < 0.05", "padj >= 0.05"),
          col    = c("#782832", "gray80"),
-         pch    = 19, pt.cex = 2.0, bty = "n", cex = 1.2,
+         pch    = 19, pt.cex = 1.6, bty = "n", cex = 1.0,
          title  = "Node label (chi-sq)")
-  
-  legend(x = 1.1, y = 0.93,
+
+  legend(x = 1.1, y = 0.70,
          legend = c("Indicator sp.", "Other"),
          col    = c("firebrick1", "gray50"),
          pt.bg  = "gray80",
          pch    = 21, pt.lwd = 2,
-         pt.cex = 2.0, bty = "n", cex = 1.2,
+         pt.cex = 1.6, bty = "n", cex = 1.0,
          title  = "Node border")
-  
-  legend(x = 1.1, y = 0.78,
+
+  legend(x = 1.1, y = 0.30,
          legend = names(habitat_colors),
          col    = "gray40",
          pt.bg  = habitat_colors,
-         pch    = 21, pt.cex = 2.0, bty = "n", cex = 1.2,
+         pch    = 21, pt.cex = 1.6, bty = "n", cex = 1.0,
          title  = "Habitat")
-  
+
   par(xpd = FALSE)
 })
 
@@ -363,20 +374,20 @@ panel_B <- cowplot::as_grob(function() {
   
   par(xpd = TRUE)
   
-  legend(x = 1.1, y = 1.1,
+  legend(x = 1.1, y = 1.15,
          legend = c("padj < 0.05", "padj >= 0.05"),
          col    = c("#782832", "gray80"),
-         pch    = 19, pt.cex = 2.0, bty = "n", cex = 1.2,
+         pch    = 19, pt.cex = 1.6, bty = "n", cex = 1.0,
          title  = "Node label (chi-sq)")
-  
-  legend(x = 1.1, y = 0.93,
+
+  legend(x = 1.1, y = 0.70,
          legend = c("Indicator sp.", "Other"),
          col    = c("firebrick1", "gray50"),
          pt.bg  = "gray80",
          pch    = 21, pt.lwd = 2,
-         pt.cex = 2.0, bty = "n", cex = 1.2,
+         pt.cex = 1.6, bty = "n", cex = 1.0,
          title  = "Node border")
-  
+
   cluster_node_counts <- table(species_to_cluster[V(network)$name])
   leg_colors <- cluster_palette[cluster_labels]
   
@@ -400,11 +411,11 @@ panel_B <- cowplot::as_grob(function() {
   leg_colors <- c(leg_colors, "gray80")
   leg_labels <- c(leg_labels, "NS")
   
-  legend(x = 1.1, y = 0.78,
+  legend(x = 1.1, y = 0.30,
          legend = leg_labels,
          col    = "gray40",
          pt.bg  = leg_colors,
-         pch    = 21, pt.cex = 2.0, bty = "n", cex = 1.2,
+         pch    = 21, pt.cex = 1.6, bty = "n", cex = 1.0,
          title  = "Cluster membership")
   
   par(xpd = FALSE)
@@ -454,34 +465,22 @@ alluvial_df <- modularity.df[, c("name", "fast_greedy")] %>%
 # Habitat fill colours aligned to habitat_colors palette
 alluvial_habitat_colors <- alluvial_habitat_colors[habitat_order]
 
+## Standard ggalluvial recipe, default stratum width and styling.
 panel_C <- ggplot(
   alluvial_df,
-  aes(axis1 = Zone, axis2 = Module, axis3 = Habitat, y = n_species)
+  aes(axis1 = Zone, axis2 = Module, axis3 = Habitat,
+      y     = n_species)
 ) +
-  geom_alluvium(
-    aes(fill = Habitat),
-    width      = 0.25,
-    alpha      = 0.75,
-    knot.pos   = 0.4,
-    curve_type = "sigmoid"
-  ) +
-  geom_stratum(
-    width     = 0.25,
-    fill      = "grey92",
-    color     = "grey40",
-    linewidth = 0.3
-  ) +
+  ggalluvial::geom_alluvium(aes(fill = Habitat), alpha = 0.6) +
+  ggalluvial::geom_stratum() +
   geom_text(
-    stat       = "stratum",
-    aes(label  = after_stat(stratum)),
-    size       = 5.5,
-    lineheight = 1.3,
-    fontface   = "bold",
-    color      = "grey20"
+    stat = "stratum",
+    aes(label = sub("^Cluster_", "", as.character(after_stat(stratum)))),
+    size = 4
   ) +
   scale_x_discrete(
     limits = c("Zone", "Module", "Habitat"),
-    expand = c(0.08, 0.01)
+    expand = c(0.05, 0.05)
   ) +
   scale_fill_manual(
     values   = alluvial_habitat_colors,
@@ -489,31 +488,20 @@ panel_C <- ggplot(
     na.value = "grey70",
     drop     = FALSE
   ) +
-  scale_y_continuous(
-    name   = "MOTUs",
-    expand = c(0, 0)
-  ) +
   theme_minimal(base_size = 14) +
   theme(
     axis.text.x         = element_text(size = 18, face = "bold"),
     axis.text.y         = element_blank(),
     axis.ticks.y        = element_blank(),
-    axis.ticks.length.y = unit(0, "pt"),
-    axis.title.x        = element_text(size = 16, face = "bold"),
-    axis.title.y        = element_text(size = 16, face = "bold", vjust = 0.5),
-    panel.grid.major    = element_blank(),
-    panel.grid.minor    = element_blank(),
-    legend.title        = element_text(size = 18, face = "bold", margin = margin(r = 25)),
+    axis.title.x        = element_blank(),
+    axis.title.y        = element_blank(),
+    panel.grid          = element_blank(),
+    legend.title        = element_text(size = 18, face = "bold"),
     legend.text         = element_text(size = 16),
-    legend.key.size     = unit(0.6, "cm"),
     legend.position     = "bottom",
-    legend.direction    = "horizontal",
-    plot.title          = element_text(face = "bold", hjust = 0, size = 32),
-    plot.margin         = margin(t = 10, r = 10, b = 10, l = 30)
+    plot.title          = element_text(face = "bold", hjust = 0, size = 32)
   ) +
-  guides(
-    fill = guide_legend(nrow = 3)
-  ) +
+  guides(fill = guide_legend(nrow = 3)) +
   labs(title = "C")
 
 # =============================================================================
@@ -616,7 +604,6 @@ message("Composing final figure ...")
 # Top row    : Panel A (habitat colours) | Panel B (module colours)
 top_row    <- gridExtra::arrangeGrob(panel_A, panel_B, ncol = 2)
 
-# Give Panel C more space in the layout
 middle_row <- gridExtra::arrangeGrob(
   ggplotGrob(panel_C),
   ggplotGrob(panel_D),
@@ -624,13 +611,16 @@ middle_row <- gridExtra::arrangeGrob(
   widths = c(1.6, 1)
 )
 
-pdf(out_pdf, width = 35, height = 30) 
+## Canvas 22x18 with heights c(1.0, 1.2): top and middle rows are
+## near-equal in height, so panel D's heatmap (13 short rows) is
+## proportioned naturally rather than being stretched vertically.
+pdf(out_pdf, width = 22, height = 18)
 
 gridExtra::grid.arrange(
   top_row,
   middle_row,
   nrow    = 2,
-  heights = c(1.2, 1.2)
+  heights = c(1.0, 1.2)
 )
 
 dev.off()

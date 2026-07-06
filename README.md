@@ -11,8 +11,9 @@ The project combines an interpretable machine learning framework (**Predomics**)
 - Predomics identified **55 indicator MOTUs** across three pairwise zone comparisons (Deep vs. Shallow, Deep vs. Middle, Middle vs. Shallow), with six taxa retained in all three comparisons, capturing the full depth gradient.
 - ScaleNet reconstructed a co-presence network of **261 nodes and 579 edges** from 318 MOTUs filtered at 3% prevalence; 31 of the 55 indicator MOTUs were recovered in the network.
 - Indicator taxa occupy structurally marginal positions in the network (significantly lower betweenness centrality than non-indicator taxa), acting as zone-specific diagnostic signatures rather than community connectivity hubs.
-- Fast-Greedy modularity partitioned the network into **12 modules** that mirror depth zonation and fine-grained habitat structure beyond the three broad zones.
-- GSEA confirmed that modules are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, Soft\_back\_reef, Reef\_outer\_slope, Summit50, DeepSlope150, Summit250, Summit500), revealing that eDNA co-presence captures habitat-associated trophic guilds rather than stochastic co-detection.
+- Fast-Greedy modularity partitioned the network into **13 modules** that mirror depth zonation and fine-grained habitat structure beyond the three broad zones.
+- GSEA confirmed that **12 of the 13 modules** are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, Soft\_back\_reef, Reef\_outer\_slope, Summit50, DeepSlope150, Summit250, Summit500), revealing that eDNA co-presence captures habitat-associated trophic guilds rather than stochastic co-detection.
+- A power-law fit of the degree distribution placed the network just below the canonical scale-free band ($\gamma \approx 1.94$) at the default $|\text{ecorr}| > 0.5$, with the optimum scale-free regime reached between $|\text{ecorr}| > 0.5$ and $> 0.6$ ($\gamma \approx 2.08$, max log–log $R^2 = 0.91$).
 
 ## 🔄 Project pipeline
 

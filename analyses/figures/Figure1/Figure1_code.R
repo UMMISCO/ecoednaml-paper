@@ -13,7 +13,12 @@
 
 # -----------------------------------------------------------------------------
 # Commands to run the script (from repo root):
-# Rscript analyses/figures/Figure1/Figure1_code.R
+#   export REPO_ROOT="/data/projects/aime/analyses/seamount/metabarcoding/"
+#   export DATA_DIR="/data/projects/aime/data/seamount/metabarcoding"
+#
+#   From REPO_ROOT, run the following commands:
+#
+#   Rscript analyses/figures/Figure1/Figure1_code.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
@@ -45,6 +50,11 @@ script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(tra
 script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/Figure1
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 data_dir     <- file.path(repo_root, "data")
+
+# Allow override via environment variable (set on the remote server)
+repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
+data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
+
 analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
@@ -129,11 +139,12 @@ p1 <- ggplot() +
     shape = guide_legend(nrow = 1)                 
   ) +
   theme(
-    axis.title = element_text(size = 16),
-    legend.text = element_text(size = 16),
-    legend.title = element_text(size = 16),
+    axis.title = element_text(size = 20),
+    axis.text  = element_text(size = 18),
+    legend.text = element_text(size = 20),
+    legend.title = element_text(size = 20),
     legend.position = "none",
-    legend.box = "vertical"  
+    legend.box = "vertical"
   )
 
 # Heatmap of co-abundance patterns across samples
@@ -154,10 +165,22 @@ dfaims_taxo <- sm$taxonomy
 dfaims_melt <- as.data.frame(dfaims)
 dfaims_melt$feature <- rownames(dfaims)
 dfaims_melt <- melt(dfaims_melt)
-dfaims_clust.sp <- hclust(dist(dfaims, method = "euclidean"), method = "ward.D") #cluster species with ward method from euclidean distances
-dfaims_clust.samples <- hclust(dist(t(dfaims), method = "euclidean"), method = "ward.D") #cluster samples with ward method from euclidean distances
-#Fix the samples and species order from the clustering results in the melted object
-dfaims_melt$feature <- factor(dfaims_melt$feature, levels = dfaims_clust.sp$labels[dfaims_clust.sp$order])
+## Order MOTUs by TAXONOMY (class > order > family > genus > tax_name)
+## so that taxonomically related MOTUs cluster together vertically within
+## each facet (rare prev<3 row and retained prev>=3 row). NAs sort last
+## so MOTUs with unresolved taxonomy fall to the bottom of each facet.
+motu_all  <- rownames(dfaims)
+taxo_for_motus <- dfaims_taxo[match(motu_all, rownames(dfaims_taxo)), ]
+taxo_motu_order <- motu_all[
+  order(taxo_for_motus$class, taxo_for_motus$order, taxo_for_motus$family,
+        taxo_for_motus$genus, taxo_for_motus$tax_name,
+        na.last = TRUE)
+]
+
+## Samples still ordered by hierarchical clustering on euclidean distance.
+dfaims_clust.samples <- hclust(dist(t(dfaims), method = "euclidean"), method = "ward.D")
+
+dfaims_melt$feature <- factor(dfaims_melt$feature, levels = taxo_motu_order)
 dfaims_melt$variable <- factor(dfaims_melt$variable, levels = dfaims_clust.samples$labels[dfaims_clust.samples$order])
 dfaims_melt <- merge(dfaims_melt, dfaims_meta[,c("Habitat", "Zone", "Site")], by.x="variable", by.y=0, all.x=TRUE)
 dfaims_taxo$feature <- rownames(dfaims_taxo)
@@ -192,22 +215,40 @@ site_order <- dfaims_melt %>%
 dfaims_melt$variable <- factor(dfaims_melt$variable, levels = site_order)
 
 
-p2 <- ggplot(dfaims_melt, aes(x=variable, y=feature, fill=value)) +
-  geom_tile(colour=NA,linewidth = 0.5) +
-  scale_fill_gradient(low = "white", high = viridis::viridis(100))+
+## Zero values represent ABSENT MOTUs in a sample -- render them as empty
+## (white) cells rather than colour them at the low end of the viridis
+## scale. Setting them to NA so na.value = 'white' in the scale picks them
+## up. Non-zero counts are then log-scaled on the colour gradient.
+dfaims_melt$value[!is.na(dfaims_melt$value) & dfaims_melt$value == 0] <- NA
+
+p2 <- ggplot(dfaims_melt, aes(x = variable, y = feature, fill = value)) +
+  geom_tile(colour = NA, linewidth = 0.5) +
+  ## Log-transformed colour scale (log1p) over non-zero abundance values.
+  ## Uses the full viridis palette; zero cells render white via na.value.
+  scale_fill_viridis_c(
+    name      = "MOTU abundance (log scale)",
+    trans     = "log1p",
+    na.value  = "white",
+    guide     = guide_colorbar(
+      barwidth       = unit(8, "cm"),
+      barheight      = unit(0.6, "cm"),
+      title.position = "top",
+      title.hjust    = 0.5
+    )
+  ) +
   ylab("MOTUs") +
-  labs(fill="MOTU abundance") +
-  facet_nested(prev_rate~Zone+Habitat, scales = "free", space = "free_x") +
+  facet_nested(prev_rate~Zone+Habitat, scales = "free", space = "free_y") +
   theme_bw() +
-  theme(axis.text.x = element_blank(),
-        legend.position = "right",
-        legend.title = element_text(color = "black", size = 16, angle= 90, vjust = 0.9, margin = margin(b = 15)),
-        axis.title.x = element_blank(),
-        axis.title.y = element_text(size=16),
-        axis.ticks.x = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        strip.text = element_text(size = 16, angle =0)
+  theme(axis.text.x      = element_blank(),
+        legend.position  = "bottom",
+        legend.title     = element_text(color = "black", size = 20, hjust = 0.5, margin = margin(b = 5)),
+        legend.text      = element_text(size = 16),
+        axis.title.x     = element_blank(),
+        axis.title.y     = element_text(size = 20),
+        axis.ticks.x     = element_blank(),
+        axis.text.y      = element_blank(),
+        axis.ticks.y     = element_blank(),
+        strip.text       = element_text(size = 14, angle = 0)
   )
 
 #richness barplot
@@ -216,29 +257,57 @@ dfaims_meta$Habitat <- factor(dfaims_meta$Habitat, levels= c("Bay","Lagoon", "So
 # Apply the same order to dfaims_meta (matching by sample name)
 dfaims_meta$Spygen <- factor(dfaims_meta$Spygen, levels = site_order)
 
-p3 <- ggplot(dfaims_meta, aes(x=Spygen, y=otu_richness, fill=Habitat)) + 
-  geom_bar(stat = "identity") + 
+## Per-habitat median richness, used for dashed reference lines in each facet.
+habitat_palette <- c(
+  "Bay"              = "#5ae6ab",
+  "Lagoon"           = "#88d941",
+  "Soft_back_reef"   = "#2e7d00",
+  "Reef_outer_slope" = "#4e8273",
+  "Summit50"         = "#ffe699",
+  "DeepSlope150"     = "#d79c3b",
+  "Summit250"        = "#4a6a94",
+  "Summit500"        = "#1a3250"
+)
+median_rich_by_habitat <- dfaims_meta %>%
+  dplyr::group_by(Habitat) %>%
+  dplyr::summarise(median_rich = median(otu_richness, na.rm = TRUE), .groups = "drop")
+
+p3 <- ggplot(dfaims_meta, aes(x = Spygen, y = otu_richness, fill = Habitat)) +
+  geom_bar(stat = "identity") +
+  ## Dashed horizontal line per facet at the median richness for that habitat,
+  ## drawn in the habitat colour. show.legend = FALSE keeps the existing
+  ## fill legend untouched (no separate colour legend).
+  geom_hline(
+    data         = median_rich_by_habitat,
+    aes(yintercept = median_rich, colour = Habitat),
+    linetype     = "dashed",
+    linewidth    = 1.1,
+    show.legend  = FALSE
+  ) +
+  scale_colour_manual(values = habitat_palette) +
   xlab("samples (Habitat)") +
-  ylab("MOTU_richness") +
-  labs(fill="Habitat") +
-  facet_nested(.~Habitat, scales = "free_x", space = "free") + 
+  ylab("MOTU richness") +
+  labs(fill = "Habitat") +
+  facet_nested(. ~ Habitat, scales = "free_x", space = "fixed") +
   theme_bw() +
-  scale_fill_manual(values = c("Bay" = "#5ae6ab", 
-                               "Lagoon" = "#88d941", 
-                               "Soft_back_reef" = "#2e7d00",
-                               "Reef_outer_slope" = "#4e8273", 
-                               "Summit50" = "#ffe699", 
-                               "DeepSlope150" = "#d79c3b", 
-                               "Summit250" = "#4a6a94", 
-                               "Summit500" = "#1a3250"))+
-  guides(fill = guide_legend(nrow = 2, byrow = TRUE)) +
-  theme(axis.text.x = element_blank(),
-        axis.title = element_text(size = 16),
-        axis.ticks.x = element_blank(),
-        strip.text = element_text(size = 16),
-        legend.text = element_text(size = 16),
-        legend.title = element_text(size = 16, margin = margin(r = 15)),
-        legend.position = "bottom")
+  scale_fill_manual(values = habitat_palette) +
+  ## p3's own legend is suppressed: a manual one-row legend strip is built
+  ## below (p3_legend_strip) because ggplot's guide_legend(nrow = 1) was
+  ## auto-wrapping to two rows regardless of width and shrink-to-fit
+  ## attempts.
+  theme(
+    axis.text.x      = element_blank(),
+    axis.ticks.x     = element_blank(),
+    axis.text.y      = element_text(size = 18),
+    axis.title       = element_text(size = 20),
+    strip.text       = element_text(size = 14),
+    legend.position  = "none"
+  )
+
+## No separate habitat legend is built: panel D already has per-habitat
+## facets whose strip labels name the habitat, and the bar colour inside
+## each facet maps unambiguously to that habitat -- the colour-to-name
+## mapping is self-evident from the facets alone.
 
 
 ################
@@ -308,7 +377,7 @@ ef.jac.plot <- ggplot(X.jac.pcoa.df) +
   geom_segment(data = ef.jac.df,
                aes(x = 0, xend = Dim1, y = 0, yend = Dim2),
                arrow = arrow(length = unit(0.25, "cm")), colour = "blue") +
-  geom_text_repel(data = ef.jac.df, aes(x = Dim1, y = Dim2, label = rownames(ef.jac.df)), size = 5, fontface = "bold")+ 
+  geom_text_repel(data = ef.jac.df, aes(x = Dim1, y = Dim2, label = rownames(ef.jac.df)), size = 6, fontface = "bold")+ 
   xlab(paste("PCo1_Jac [", signif((X.jac.pcoa$eig[1]/sum(X.jac.pcoa$eig)),3)*100,"%]", sep="")) +
   ylab(paste("PCo2_Jac [", signif((X.jac.pcoa$eig[2]/sum(X.jac.pcoa$eig)),3)*100,"%]", sep="")) +
   scale_color_manual(values = c("Bay" = "#5ae6ab", "Lagoon" = "#88d941", "Soft_back_reef" = "#2e7d00","Reef_outer_slope" = "#4e8273", "Summit50" = "#ffe699", "DeepSlope" = "#d79c3b", "Summit250" = "#4a6a94", "Summit500" = "#1a3250"))+
@@ -324,9 +393,10 @@ ef.jac.plot <- ggplot(X.jac.pcoa.df) +
   ) +
   theme_bw()+
   theme(plot.title = element_text(hjust = 0.5),
-        axis.title= element_text(size=16),
-        legend.text = element_text(size = 16),
-        legend.title = element_text(size = 16, margin = margin(b = 15)),
+        axis.title= element_text(size=20),
+        axis.text = element_text(size = 18),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20, margin = margin(b = 15)),
         legend.position = "right",
         legend.box = "vertical",
         legend.spacing.y = unit(0.4, "cm")
@@ -343,6 +413,7 @@ layout ="
  CCCCCC
  CCCCCC
  CCCCCC
+ DDDDDD
  DDDDDD"
 
 # set the path to save the figure
@@ -355,9 +426,23 @@ if (!dir.exists(path)) {
 
 # save the combined figure to a pdf
 pdf(file=paste0(path, "Figure1.pdf"), h=20, w=22)
-wrap_elements(full = p1) +  
-  wrap_elements(full = p4) + p2 + p3 + 
-  plot_layout(design = layout) + 
-  plot_annotation(tag_levels = "A") & 
-  theme(plot.tag = element_text(face = "bold", size=24))
+## p2 (heatmap) is WRAPPED so its colorbar stays inside panel C.
+## p3 (barplot) is left unwrapped so its habitat legend gets collected
+## up to the patchwork level via guides = 'collect'. At that level the
+## legend has access to the full 22-inch figure width and can finally
+## honour nrow = 1.
+## p1 (map) and p4 (PCoA) are also wrapped: their legends stay put
+## (map has none; PCoA's Zone legend stays on the right of panel B).
+wrap_elements(full = p1) +
+  wrap_elements(full = p4) +
+  wrap_elements(full = p2) +
+  p3 +
+  ## heights argument weights the 9 layout rows so panel C (rows 4-7) gets
+  ## ~60% more vertical space per row than A/B/D's rows. With PDF h = 20
+  ## and total weight 3*1 + 4*1.6 + 2*1 = 11.4, panel C now renders at
+  ## ~11.2 in (was ~8.9 in before), giving the heatmap a much more
+  ## comfortable vertical footprint. A/B/D shrink slightly to make room.
+  plot_layout(design = layout, heights = c(rep(1, 3), rep(1.6, 4), rep(1, 2))) +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(face = "bold", size = 24))
 dev.off()

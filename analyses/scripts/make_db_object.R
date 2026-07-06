@@ -11,7 +11,12 @@
 
 # -----------------------------------------------------------------------------
 # Commands to run the script (from repo root):
-# Rscript analyses/scripts/make_db_object.R
+#   export REPO_ROOT="/data/projects/aime/analyses/seamount/metabarcoding/"
+#   export DATA_DIR="/data/projects/aime/data/seamount/metabarcoding"
+#
+#   From REPO_ROOT, run the following commands:
+#
+#   Rscript analyses/scripts/make_db_object.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
@@ -31,6 +36,10 @@ script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(tra
 script_dir   <- dirname(script_path)         # <repo>/analyses/scripts
 repo_root    <- dirname(dirname(script_dir)) # <repo>/
 data_dir     <- file.path(repo_root, "data")
+
+# Allow override via environment variable (set on the remote server)
+repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
+data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
 
 db  <- as.data.frame(suppressMessages(read_csv(file.path(data_dir, "eDNA_Data_SEAMOUNTS_REEF3.0_merged.csv"))))
 env <- as.data.frame(suppressMessages(read_csv(file.path(data_dir, "eDNA_SEAMOUNTS_REEF3.0_merged_Environmental_Variables_raw.csv"))))

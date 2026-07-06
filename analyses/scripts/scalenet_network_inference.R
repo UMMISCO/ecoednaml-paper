@@ -10,7 +10,12 @@
 
 # -----------------------------------------------------------------------------
 # Commands to run the script (from repo root):
-# Rscript analyses/scripts/scalenet_network_inference.R 50
+#   export REPO_ROOT="/data/projects/aime/analyses/seamount/metabarcoding/"
+#   export DATA_DIR="/data/projects/aime/data/seamount/metabarcoding"
+#
+#   From REPO_ROOT, run the following commands:
+#
+#   Rscript analyses/scripts/scalenet_network_inference.R 50
 # -----------------------------------------------------------------------------
 
 # define arguments for the script
@@ -45,6 +50,11 @@ script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(tra
 script_dir   <- dirname(script_path)         # <repo>/analyses/scripts
 repo_root    <- dirname(dirname(script_dir)) # <repo>/
 data_dir     <- file.path(repo_root, "data")
+
+# Allow override via environment variable (set on the remote server)
+repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
+data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
+
 analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
