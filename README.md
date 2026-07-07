@@ -48,7 +48,7 @@ Steps 1–3 read `smX_pres_abs_matrix.rda` from step 0 — a samples × MOTU pre
 
 ## 🐟 Data description
 
-This study uses an environmental DNA dataset collected by Baletaud et al. (2023) and Mathon et al. (2025) in marine ecosystems of New Caledonia. Water samples collected at each station were filtered and amplified using fish-specific 12S rRNA primers. MOTUs (Molecular Operational Taxonomic Units) were identified by matching amplicon sequences against a curated reference database. Read counts were normalised per PCR replicate using the `normFreqTC` function from the `momr` package. Indicator-taxon (Predomics) and network-inference (ScaleNet) analyses instead use MOTU presence/absence (detected / not detected per sample), derived directly from raw read counts.
+This study uses an environmental DNA dataset collected by Baletaud et al. (2023) and Mathon et al. (2025) in marine ecosystems of New Caledonia. Water samples collected at each station were filtered and amplified using fish-specific 12S rRNA primers. MOTUs (Molecular Operational Taxonomic Units) were identified by matching amplicon sequences against a curated reference database. Indicator-taxon (Predomics) and network-inference (ScaleNet) analyses use MOTU presence/absence (detected / not detected per sample), derived directly from raw read counts.
 
 ![Dataset overview — map, species richness heatmap, and PCoA ordination](analyses/figures/Figure1/Figure1.svg)
 
@@ -64,7 +64,7 @@ This study uses an environmental DNA dataset collected by Baletaud et al. (2023)
 | **Depth range** | 0 – 500 m |
 | **Depth strata (for analyses)** | Shallow (Bay, Lagoon, OuterSlope, BackReef), Middle (Seamount50 / DeepSlope150), Deep (Seamount250 / Seamount500) |
 | **Environmental covariates** | 13 (Sea Surface Temperature (SST) [SSTmax, SSTmean, SSTmin, SSTsd], SeafloorTemp, Salinity, chlorophyll-a (chla), current velocity (EastwardVelocity, NorthwardVelocity), reef Min distance (ReefMinDist.m), land distance, MOTU richness, travel time to Nouméa) |
-| **Abundance normalisation** | `normFreqTC` (per-PCR relative frequency normalisation); indicator/network analyses use presence/absence instead |
+| **Occurrence data** | MOTU presence/absence (detected / not detected per sample), derived directly from raw read counts |
 | **Prevalence filter (analyses)** | 3% of samples |
 
 ### Ecological context
@@ -112,9 +112,6 @@ BiocManager::install(c("piano", "ggtree", "ggtreeExtra", "ggnewscale"))
 # ── GitHub packages ────────────────────────────────────────────────────────────
 install.packages("remotes")
 
-# momr — read-count normalisation
-remotes::install_github("eprifti/momr")
-
 # Predomics — interpretable machine learning for omics data
 remotes::install_github("predomics/predomicspkg", dependencies = TRUE)
 
@@ -125,7 +122,7 @@ remotes::install_github("UMMISCO/scalenet")
 ## 🧠 Dependencies
 
 - **R version**: 4.4.0 or later
-- **Key packages**: `predomics` (1.1.0), `scalenet` (1.2.3), `momr`, `igraph` (2.2.1), `vegan` (2.7.2), `piano` (2.22.0), `ggtree`, `ggplot2`, `patchwork`
+- **Key packages**: `predomics` (1.1.0), `scalenet` (1.2.3), `igraph` (2.2.1), `vegan` (2.7.2), `piano` (2.22.0), `ggtree`, `ggplot2`, `patchwork`
 
 ## 💰 Acknowledgments
 

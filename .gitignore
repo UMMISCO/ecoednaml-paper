@@ -37,3 +37,6 @@ rosm.cache/
 
 # Allow gitignore itself
 !.gitignore
+
+# Excude the script for data preprocessing
+/analyses/scripts/clean_input_csv.R
