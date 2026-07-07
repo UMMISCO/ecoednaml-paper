@@ -4,7 +4,7 @@
 # Date created: 2025-12-10
 # Purpose: Run Predomics (bininter/terinter) pairwise habitat comparisons on
 #          eDNA presence/absence data filtered by prevalence.
-# Inputs:  data/SmX_pres_abs_matrix.rda
+# Inputs:  data/smX_pres_abs_matrix.rda
 # Outputs: analyses/analysis_outputs/<algorithm>_output_data/
 #            <algorithm>_Predomics_all_analyses_overall_data_<group>_prev_<N>.Rda
 # =============================================================================
@@ -70,10 +70,10 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
-load(file.path(data_dir, "SmX_pres_abs_matrix.rda"))
-rownames(SmX_pres_abs_matrix) <- SmX_pres_abs_matrix$Spygen
+load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
+rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Spygen
 base_meta_cols <- c("Spygen", "Habitat", "Zone", "hab_inoff")
-edna_presenceAbsence <- as.matrix(SmX_pres_abs_matrix[, !colnames(SmX_pres_abs_matrix) %in% base_meta_cols])
+edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% base_meta_cols])
 
 # get samples filtered at the chosen prevalence rate
 filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, prevalence_rate)
@@ -82,7 +82,7 @@ acc <- data.frame(filtered_edna_presenceAbsence)
 acc$Spygen <- rownames(acc)
 
 # merge presence/absence table with sample info (Zone/hab_inoff already derived from Habitat)
-acc <- merge(acc, SmX_pres_abs_matrix[, base_meta_cols], by = 'Spygen', all.x = TRUE)
+acc <- merge(acc, smX_pres_abs_matrix[, base_meta_cols], by = 'Spygen', all.x = TRUE)
 rownames(acc) <- acc$Spygen
 
 # rename Habitat/Zone to match the habitat-group variable names used below

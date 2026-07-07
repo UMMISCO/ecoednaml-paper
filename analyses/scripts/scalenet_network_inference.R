@@ -4,7 +4,7 @@
 # Date created: 2025-08-26
 # Purpose: Reconstruct a co-presence network from eDNA data using ScaleNet,
 #     and annotate the network with species' habitat preferences and indicator status.
-# Inputs: SmX_pres_abs_matrix.rda (presence/absence data), annotation data, predomics key species info
+# Inputs: smX_pres_abs_matrix.rda (presence/absence data), annotation data, predomics key species info
 # Outputs: annotation_data.Rda
 # =====================================================================================
 
@@ -59,10 +59,10 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
-load(file.path(data_dir, "SmX_pres_abs_matrix.rda"))
-rownames(SmX_pres_abs_matrix) <- SmX_pres_abs_matrix$Spygen
+load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
+rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Spygen
 meta_cols <- c("Spygen", "Habitat", "Zone", "hab_inoff")
-edna_presenceAbsence <- as.matrix(SmX_pres_abs_matrix[, !colnames(SmX_pres_abs_matrix) %in% meta_cols])
+edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% meta_cols])
 
 # get samples filtered at 3% of prevalence of the total of samples
 filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, 3)
@@ -186,7 +186,7 @@ compute_chisq_post_hoc <- function(df, group_var = "Zone") {
 
 # Add Habitat info presence/absence matrix
 
-sample.info <- SmX_pres_abs_matrix[, meta_cols]
+sample.info <- smX_pres_abs_matrix[, meta_cols]
 
 if (any(is.na(sample.info$Zone))) {
   warning(paste("Unmatched habitats:",

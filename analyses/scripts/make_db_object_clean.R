@@ -12,7 +12,7 @@
 #          data/eDNA_SEAMOUNTS_REEF3.0_merged_Environmental_Variables_clean.csv
 #          data/DBtaxonomy.xlsx
 # Outputs: data/seamount_integrated_dataset_clean.rda   (sm object, sm$X is presence/absence)
-#          data/SmX_pres_abs_matrix.rda                 (samples x MOTU presence/absence,
+#          data/smX_pres_abs_matrix.rda                 (samples x MOTU presence/absence,
 #                                                         with Habitat/Zone/hab_inoff columns
 #                                                         used by Predomics, ScaleNet, GSEA)
 # Run:     Rscript analyses/scripts/make_db_object_clean.R
@@ -123,17 +123,8 @@ reftax.list <- reftax.list[, rev(colnames(reftax.list))]
 # -----------------------------------------------------------------------------
 # Enrich sample metadata
 # -----------------------------------------------------------------------------
-richness    <- data.frame(sample = colnames(X), otu_richness = colSums(X))
+richness    <- data.frame(sample = colnames(X), MOTU_richness = colSums(X))
 sample.info <- merge(sample.info, richness, by.x = "Spygen", by.y = "sample")
-
-ind7 <- nchar(sample.info$Station) == 7
-ind9 <- nchar(sample.info$Station) == 9
-sample.info$Station_id <- NA_character_
-sample.info$Station_id[ind7] <- substr(sample.info$Station[ind7], 1, 5)
-sample.info$Station_id[ind9] <- substr(sample.info$Station[ind9], 1, 7)
-sample.info$Filter_id <- NA_character_
-sample.info$Filter_id[ind7] <- substr(sample.info$Station[ind7], 6, 7)
-sample.info$Filter_id[ind9] <- substr(sample.info$Station[ind9], 8, 9)
 
 # -----------------------------------------------------------------------------
 # Output 1: sm object (.rda)
@@ -145,7 +136,7 @@ message("Saved: seamount_integrated_dataset_clean.rda (",
         nrow(sm$X), " species x ", ncol(sm$X), " samples, presence/absence)")
 
 # -----------------------------------------------------------------------------
-# Output 2: SmX_pres_abs_matrix (samples x MOTU presence/absence), with
+# Output 2: smX_pres_abs_matrix (samples x MOTU presence/absence), with
 # Habitat/Zone/hab_inoff columns so downstream analyses (Predomics, ScaleNet,
 # GSEA) don't each need to re-derive these groupings from Habitat.
 # -----------------------------------------------------------------------------
@@ -160,18 +151,18 @@ hab_inoff_lookup <- c(
   "Seamount250" = "OFFSHORE", "Seamount500" = "OFFSHORE"
 )
 
-SmX_pres_abs_matrix <- merge(sample.info[, c("Spygen", "Habitat")],
+smX_pres_abs_matrix <- merge(sample.info[, c("Spygen", "Habitat")],
                              as.data.frame(t(X)),
                              by.x = "Spygen", by.y = "row.names")
-SmX_pres_abs_matrix$Zone      <- unname(zone_lookup[SmX_pres_abs_matrix$Habitat])
-SmX_pres_abs_matrix$hab_inoff <- unname(hab_inoff_lookup[SmX_pres_abs_matrix$Habitat])
-rownames(SmX_pres_abs_matrix) <- SmX_pres_abs_matrix$Spygen
+smX_pres_abs_matrix$Zone      <- unname(zone_lookup[smX_pres_abs_matrix$Habitat])
+smX_pres_abs_matrix$hab_inoff <- unname(hab_inoff_lookup[smX_pres_abs_matrix$Habitat])
+rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Spygen
 
-motu_cols <- setdiff(colnames(SmX_pres_abs_matrix),
+motu_cols <- setdiff(colnames(smX_pres_abs_matrix),
                      c("Spygen", "Habitat", "Zone", "hab_inoff"))
-SmX_pres_abs_matrix <- SmX_pres_abs_matrix[, c("Spygen", "Habitat", "Zone", "hab_inoff", motu_cols)]
+smX_pres_abs_matrix <- smX_pres_abs_matrix[, c("Spygen", "Habitat", "Zone", "hab_inoff", motu_cols)]
 
-out_rda_X <- file.path(data_dir, "SmX_pres_abs_matrix.rda")
-save(SmX_pres_abs_matrix, file = out_rda_X)
+out_rda_X <- file.path(data_dir, "smX_pres_abs_matrix.rda")
+save(smX_pres_abs_matrix, file = out_rda_X)
 message("Saved: smX_pres_abs_matrix.rda (",
-        nrow(SmX_pres_abs_matrix), " samples x ", length(motu_cols), " MOTUs)")
+        nrow(smX_pres_abs_matrix), " samples x ", length(motu_cols), " MOTUs)")

@@ -270,9 +270,9 @@ habitat_palette <- c(
 )
 median_rich_by_habitat <- dfaims_meta %>%
   dplyr::group_by(Habitat) %>%
-  dplyr::summarise(median_rich = median(otu_richness, na.rm = TRUE), .groups = "drop")
+  dplyr::summarise(median_rich = median(MOTU_richness, na.rm = TRUE), .groups = "drop")
 
-p3 <- ggplot(dfaims_meta, aes(x = Spygen, y = otu_richness, fill = Habitat)) +
+p3 <- ggplot(dfaims_meta, aes(x = Spygen, y = MOTU_richness, fill = Habitat)) +
   geom_bar(stat = "identity") +
   ## Dashed horizontal line per facet at the median richness for that habitat,
   ## drawn in the habitat colour. show.legend = FALSE keeps the existing
@@ -346,10 +346,7 @@ rownames(num_env_vars) <- num_env_vars$Spygen ; num_env_vars <- num_env_vars[,-1
 num_env_vars <- num_env_vars[, colSums(is.na(num_env_vars)) == 0]
 
 # select few variables for env fitting
-num_env_vars <- num_env_vars[, c("Depth", "Salinity", "Chla", "seafloorTemp", "SSTmean", "TravelTime", "ReefMinDist.m", "otu_richness", "Latitude", "Longitude")]
-
-# Rename otu_richness to MOTU_richness
-colnames(num_env_vars)[colnames(num_env_vars) == "otu_richness"] <- "MOTU_richness"
+num_env_vars <- num_env_vars[, c("Depth", "Salinity", "Chla", "seafloorTemp", "SSTmean", "TravelTime", "ReefMinDist.m", "MOTU_richness", "Latitude", "Longitude")]
 
 # Get the row names from the ordination points
 ord_samples_jac <- rownames(X.jac.pcoa$points)

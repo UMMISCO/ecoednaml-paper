@@ -117,17 +117,8 @@ reftax.list <- reftax.list[, rev(colnames(reftax.list))]
 # Normalise abundance data
 X <- normFreqTC(as.matrix(X))
 
-richness    <- data.frame(sample = colnames(X), otu_richness = colSums(X > 0))
+richness    <- data.frame(sample = colnames(X), MOTU_richness = colSums(X > 0))
 sample.info <- merge(sample.info, richness, by.x = "Spygen", by.y = "sample")
-
-ind7 <- nchar(sample.info$Station) == 7
-ind9 <- nchar(sample.info$Station) == 9
-sample.info$Station_id <- NA_character_
-sample.info$Station_id[ind7] <- substr(sample.info$Station[ind7], 1, 5)
-sample.info$Station_id[ind9] <- substr(sample.info$Station[ind9], 1, 7)
-sample.info$Filter_id <- NA_character_
-sample.info$Filter_id[ind7] <- substr(sample.info$Station[ind7], 6, 7)
-sample.info$Filter_id[ind9] <- substr(sample.info$Station[ind9], 8, 9)
 
 # Assemble and save the unified data object
 sm <- list(db_long = dba, sample_info = sample.info, X = X, taxonomy = reftax.list)

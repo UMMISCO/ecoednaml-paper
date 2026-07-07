@@ -4,7 +4,7 @@
 # Date created: 2025-12-10
 # Purpose: Filter eDNA presence/absence data by prevalence and save
 #          presence/absence table(s) for downstream analyses.
-# Inputs: data/SmX_pres_abs_matrix.rda
+# Inputs: data/smX_pres_abs_matrix.rda
 # Outputs:
 #   (default) presanceAbsence_table.txt                              — full dataset, used by ScaleNet
 #   (optional) presanceAbsence_table_prev_<N>_<stratum>.txt         — per stratum
@@ -45,10 +45,10 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
-load(file.path(data_dir, "SmX_pres_abs_matrix.rda"))
+load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
 meta_cols <- c("Spygen", "Habitat", "Zone", "hab_inoff")
-edna_presenceAbsence <- as.matrix(SmX_pres_abs_matrix[, !colnames(SmX_pres_abs_matrix) %in% meta_cols])
-rownames(edna_presenceAbsence) <- SmX_pres_abs_matrix$Spygen
+edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% meta_cols])
+rownames(edna_presenceAbsence) <- smX_pres_abs_matrix$Spygen
 
 # get samples filtered at species_prev_rate % of prevalence of the total of samples
 filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, species_prev_rate)
@@ -68,7 +68,7 @@ message("Saved: presanceAbsence_table_prev_", species_prev_rate, ".txt (",
 
 # Optionally save per-stratum and pairwise tables
 if (save_stratified) {
-  sample.info <- SmX_pres_abs_matrix[, c("Spygen", "Zone")]
+  sample.info <- smX_pres_abs_matrix[, c("Spygen", "Zone")]
 
   presabs.df          <- as.data.frame(filtered_edna_presenceAbsence)
   presabs.df$Spygen   <- rownames(presabs.df)
