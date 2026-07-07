@@ -12,7 +12,7 @@ The project combines an interpretable machine learning framework (**Predomics**)
 - ScaleNet reconstructed a co-presence network of **261 nodes and 579 edges** from 318 MOTUs filtered at 3% prevalence; 31 of the 55 indicator MOTUs were recovered in the network.
 - Indicator taxa occupy structurally marginal positions in the network (significantly lower betweenness centrality than non-indicator taxa), acting as zone-specific diagnostic signatures rather than community connectivity hubs.
 - Fast-Greedy modularity partitioned the network into **13 modules** that mirror depth zonation and fine-grained habitat structure beyond the three broad zones.
-- GSEA confirmed that **12 of the 13 modules** are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, Soft\_back\_reef, Reef\_outer\_slope, Summit50, DeepSlope150, Summit250, Summit500), revealing that eDNA co-presence captures habitat-associated trophic guilds rather than stochastic co-detection.
+- GSEA confirmed that **12 of the 13 modules** are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, BackReef, OuterSlope, Seamount50, DeepSlope150, Seamount250, Seamount500), revealing that eDNA co-presence captures habitat-associated trophic guilds rather than stochastic co-detection.
 - A power-law fit of the degree distribution placed the network just below the canonical scale-free band ($\gamma \approx 1.94$) at the default $|\text{ecorr}| > 0.5$, with the optimum scale-free regime reached between $|\text{ecorr}| > 0.5$ and $> 0.6$ ($\gamma \approx 2.08$, max log–log $R^2 = 0.91$).
 
 ## 🔄 Project pipeline
@@ -23,11 +23,13 @@ The analysis proceeds in five sequential steps. All scripts derive their working
 
 | Step | Script | Output |
 |------|--------|--------|
-| 0. Build dataset | `analyses/scripts/make_db_object.R` | `data/seamount_integrated_dataset.rda` |
+| 0. Build dataset | `analyses/scripts/make_db_object_clean.R` | `data/seamount_integrated_dataset_clean.rda`, `data/smX_pres_abs_matrix.rda` |
 | 1. Prepare tables | `analyses/scripts/save_table_data.R` | Presence/absence tables for ScaleNet |
 | 2. Predomics analyses | `analyses/scripts/codePredomics_prev.R` | Indicator MOTU results (`.Rda`) |
 | 3. Network inference | `analyses/scripts/scalenet_network_inference.R` | `graph_data/graph_data_ecorr50_all_strat_<date>.rda` |
 | 4. Figures | `analyses/figures/FigureN/FigureN_code.R` | Publication figures (PDF) |
+
+Steps 1–3 read `smX_pres_abs_matrix.rda` from step 0 — a samples × MOTU presence/absence table with `Habitat`, `Zone`, and `hab_inoff` grouping columns already attached. The figure scripts (step 4) still read `seamount_integrated_dataset.rda`, produced by the original `analyses/scripts/make_db_object.R`, for sample metadata, taxonomy, and PCoA ordination.
 
 ## ⚙️ Methods
 
@@ -41,12 +43,12 @@ The analysis proceeds in five sequential steps. All scripts derive their working
 
 - **GSEA**: Gene Set Enrichment Analysis (Piano package) tests whether each Fast-Greedy module is non-randomly enriched for taxa associated with specific zones or habitats. Taxa are ranked by Benjamini–Hochberg adjusted *p*-value with the sign of the Pearson residual as direction indicator (1,000 permutations). See [Väremo et al., 2013](https://pubmed.ncbi.nlm.nih.gov/23444143/).
 
-- **PERMANOVA**: Community-level significance of habitat separation was assessed with `adonis2` (Bray-Curtis for abundance, Jaccard for presence/absence), run both on all MOTUs and on indicator MOTUs identified by Predomics.
+- **PERMANOVA**: Community-level significance of habitat separation was assessed with `adonis2` using Jaccard distances on presence/absence data, run both on all MOTUs and on indicator MOTUs identified by Predomics.
 
 
 ## 🐟 Data description
 
-This study uses an environmental DNA dataset collected by Baletaud et al. (2023) and Mathon et al. (2025) in marine ecosystems of New Caledonia. Water samples collected at each station were filtered and amplified using fish-specific 12S rRNA primers. MOTUs (Molecular Operational Taxonomic Units) were identified by matching amplicon sequences against a curated reference database. Read counts were normalised per PCR replicate using the `normFreqTC` function from the `momr` package.
+This study uses an environmental DNA dataset collected by Baletaud et al. (2023) and Mathon et al. (2025) in marine ecosystems of New Caledonia. Water samples collected at each station were filtered and amplified using fish-specific 12S rRNA primers. MOTUs (Molecular Operational Taxonomic Units) were identified by matching amplicon sequences against a curated reference database. Read counts were normalised per PCR replicate using the `normFreqTC` function from the `momr` package. Indicator-taxon (Predomics) and network-inference (ScaleNet) analyses instead use MOTU presence/absence (detected / not detected per sample), derived directly from raw read counts.
 
 ![Dataset overview — map, species richness heatmap, and PCoA ordination](analyses/figures/Figure1/Figure1.svg)
 
@@ -58,11 +60,11 @@ This study uses an environmental DNA dataset collected by Baletaud et al. (2023)
 | **Sampling method** | Environmental DNA water filtration + 12S rRNA metabarcoding |
 | **Molecular marker** | 12S rRNA (fish-specific primers) |
 | **Number of MOTUs** | 967 |
-| **Number of habitat types** | 8 (Bay, Lagoon, Reef_outer_slope, Soft_back_reef, Summit50, DeepSlope150, Summit250, Summit500) |
+| **Number of habitat types** | 8 (Bay, Lagoon, OuterSlope, BackReef, Seamount50, DeepSlope150, Seamount250, Seamount500) |
 | **Depth range** | 0 – 500 m |
-| **Depth strata (for analyses)** | Shallow (Bay, Lagoon, Reef_outer_slope, Soft_back_reef), Middle (Summit50 / DeepSlope150), Deep (Summit250 / Summit500) |
-| **Environmental covariates** | 13 (Sea Surface Temperature (SST) [SSTmax, SSTmean, SSTmin, SSTsd], SeafloorTemp, Salinity, chlorophyll-a (chla), current velocity (EastwardVelocity, NorthwardVelocity), reef Min distance (ReefMinDist.m), land distance, OTU richness, travel time to Nouméa) |
-| **Abundance normalisation** | `normFreqTC` (per-PCR relative frequency normalisation) |
+| **Depth strata (for analyses)** | Shallow (Bay, Lagoon, OuterSlope, BackReef), Middle (Seamount50 / DeepSlope150), Deep (Seamount250 / Seamount500) |
+| **Environmental covariates** | 13 (Sea Surface Temperature (SST) [SSTmax, SSTmean, SSTmin, SSTsd], SeafloorTemp, Salinity, chlorophyll-a (chla), current velocity (EastwardVelocity, NorthwardVelocity), reef Min distance (ReefMinDist.m), land distance, MOTU richness, travel time to Nouméa) |
+| **Abundance normalisation** | `normFreqTC` (per-PCR relative frequency normalisation); indicator/network analyses use presence/absence instead |
 | **Prevalence filter (analyses)** | 3% of samples |
 
 ### Ecological context
