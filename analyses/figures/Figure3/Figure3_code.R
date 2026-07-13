@@ -281,7 +281,12 @@ plot1 <- ggplot(plot1_data, aes(x = comparison, y = feature)) +
     panel.background = element_rect(fill = "white", colour = NA),
     plot.title = element_text(face = "bold", size = 20)
   ) +
-  scale_y_discrete(drop = FALSE)
+  ## Per Eugeni Belda's review: features were labelled with the
+  ## dataset's historical 'OTU...' prefix but the manuscript talks
+  ## about MOTUs throughout. Rewriting at render time keeps the
+  ## upstream data structure unchanged.
+  scale_y_discrete(drop = FALSE,
+                   labels = function(x) sub("^OTU", "MOTU", x))
 
 # Plot 2: Feature importance
 featImp.df.filtered$sign <- factor(featImp.df.filtered$sign, levels=c("-1","1"))
@@ -377,24 +382,37 @@ model_counts <- fbmAUC.df %>%
 
 model_counts$label <- paste0("n=", model_counts$n)
 
-plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_)) +
-  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+## Per Thomas Lamy's review: split the AUC boxplot by source so
+## bininter and terinter appear as two side-by-side boxes per
+## zone contrast, instead of one pooled box per contrast. Lets
+## the reader compare the two model classes directly within each
+## contrast.
+plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_, fill = language)) +
+  geom_boxplot(alpha = 0.55, outlier.shape = NA,
+               position = position_dodge(width = 0.75), width = 0.6) +
   geom_point(aes(colour = language),
-             position = position_jitter(width = 0.2, seed = 123),
-             size = 2,
+             position = position_jitterdodge(jitter.width = 0.15,
+                                             dodge.width = 0.75,
+                                             seed = 123),
+             size = 1.6,
              alpha = 0.6
   ) +
   geom_text(data = model_counts,
             aes(x = comparison, y = Inf, label = label),
             vjust = 1.5, size = 8, inherit.aes = FALSE) +
   scale_colour_manual("Source", values = source_colours) +
-  stat_compare_means(
-    method = "wilcox.test",
-    comparisons = comparison_pairs,
-    label = "p.signif",
-    step.increase = 0.08,
-    hide.ns = TRUE,
-    size = 9
+  scale_fill_manual("Source",   values = source_colours) +
+  ## Bininter-vs-terinter Wilcoxon test WITHIN each contrast, since
+  ## the boxplots are now split by source. The previous
+  ## between-contrast significance bars (****) were dropped because
+  ## they no longer make sense on dodged boxes.
+  ggpubr::stat_compare_means(
+    aes(group = language),
+    method  = "wilcox.test",
+    label   = "p.signif",
+    label.y = 1.02,
+    size    = 7,
+    hide.ns = TRUE
   ) +
   scale_y_continuous(
     expand = expansion(mult = c(0.05, 0.15))
@@ -446,10 +464,13 @@ permanova_analysis_source <- function(comparison, source_name) {
   all.y <- data$y
   names(all.y) <- rownames(all.X)
 
-  fbm.species <- unique(
+  # NOTE: tfeats.fbm$feature was converted to factor earlier (for plot ordering);
+  # subsetting all.X by a factor uses integer level indices, not names, so we
+  # must coerce back to character here to get name-based column selection.
+  fbm.species <- unique(as.character(
     tfeats.fbm[tfeats.fbm$comparison == comparison &
                  tfeats.fbm$source     == source_name, "feature"]
-  )
+  ))
   
   if (length(fbm.species) == 0) return(NULL)
   

@@ -2,6 +2,24 @@
 # utils.R — shared utility functions for the EcoEdnaNet pipeline
 # =============================================================================
 
+HABITAT_RECODE <- c(
+  "Soft_back_reef"   = "BackReef",
+  "Reef_outer_slope" = "OuterSlope",
+  "Summit50"         = "Seamount50",
+  "Summit250"        = "Seamount250",
+  "Summit500"        = "Seamount500"
+)
+
+recode_habitats <- function(x) {
+  if (is.factor(x)) {
+    levels(x) <- ifelse(levels(x) %in% names(HABITAT_RECODE),
+                        HABITAT_RECODE[levels(x)], levels(x))
+    x
+  } else {
+    ifelse(x %in% names(HABITAT_RECODE), HABITAT_RECODE[x], x)
+  }
+}
+
 get_sample_by_prevalence <- function(abundance_matrix, prevalence_rate) {
   message(paste("You set the prevalence rate to:", paste0(prevalence_rate, "%")))
   prevalence_rate <- prevalence_rate / 100

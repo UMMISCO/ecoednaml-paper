@@ -41,11 +41,25 @@ repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 
 analyses_dir <- file.path(repo_root, "analyses")
+# Load HABITAT_RECODE / recode_habitats() so the legacy habitat codes
+# (Soft_back_reef, Reef_outer_slope, Summit50/250/500) stored in the
+# cached graph_data Rda can be mapped onto the renamed codes
+# (BackReef, OuterSlope, Seamount50/250/500). Figure 4 does not currently
+# render any habitat-valued column, but recoding defensively keeps
+# nodes.annot consistent with the rest of the pipeline.
+source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
                                pattern = "^graph_data_ecorr50_all_strat_", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
 load(graph_data_path)
+
+# Recode the legacy habitat codes in nodes.annot$assigned_class.habitat
+# (carrying the per-node habitat assignment from the chi-square post-hoc)
+# so it matches the renamed palette keys used elsewhere in the pipeline.
+if ("assigned_class.habitat" %in% colnames(nodes.annot)) {
+  nodes.annot$assigned_class.habitat <- recode_habitats(nodes.annot$assigned_class.habitat)
+}
 
 # load indicator species — terinter model
 load(file.path(analyses_dir, "analysis_outputs", "terinter_output_data", "terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda"))
@@ -65,6 +79,36 @@ nodes.annot$IsIndSp <- ifelse(
   "Yes", "No"
 )
 
+## Show MOTU labels only on indicator taxa (red-bordered nodes). The
+## raw network has 261 nodes; per Thomas Lamy's review, labelling
+## every node renders the graph illegible at print size, so we keep
+## only the 31 indicator labels and leave the rest blank. The remaining
+## nodes are still visually distinguishable by colour (zone) and the
+## node-frame border defined below.
+indicator_names <- nodes.annot$name[nodes.annot$IsIndSp == "Yes"]
+is_indicator    <- V(network)$name %in% indicator_names
+## Per Eugeni Belda's review: features in the figures should be
+## labelled as 'MOTU...' to match the text terminology (the
+## manuscript talks about MOTUs, the dataset stores them with the
+## historical 'OTU...' prefix). Convert at render time.
+indicator_label <- ifelse(is_indicator,
+                          sub("^OTU", "MOTU", V(network)$label),
+                          NA)
+
+## Per Thomas Lamy's review: with labels off the non-indicator nodes
+## were blurring into colour blobs in dense regions. Explicit
+## per-node frame setup keeps a thick red border on indicators and
+## applies a dark-grey border on every other node.
+##
+## Border widths bumped (non-indicator 1.2 -> 3.0, indicator 2.5 ->
+## 4.0) because the standalone Figure 4 PDF is 20x12 in but the
+## manuscript embeds it at \textwidth (~5 in), shrinking the
+## figure by ~4x; the previous values rendered at ~0.3 px on the
+## page and disappeared. The new values land at ~0.75-1.0 px on
+## the printed page -- visible, but not overwhelming.
+node_frame_color <- ifelse(is_indicator, "firebrick1", "grey15")
+node_frame_width <- ifelse(is_indicator, 2.5, 1.8)
+
 # =============================================================================
 # PANEL A — Network plot
 # =============================================================================
@@ -73,20 +117,20 @@ panel_A <- cowplot::as_grob(function() {
 
   ## Right margin sized to fit the three legends placed at x = 1.2 in
   ## plot coords. At cex 1.1 the longest legend texts (Habitat titles
-  ## like 'Reef_outer_slope') need ~2 in of horizontal real estate;
+  ## like 'OuterSlope') need ~2 in of horizontal real estate;
   ## the previous mar = 10 lines (~1.5 in) let the legends spill past
   ## the panel-A box and overlap onto panel B. mar = 16 lines
   ## (~2.4 in) keeps them fully inside the right margin.
   par(mar = c(0, 0, 0, 16), xpd = FALSE)
-  
+
   plot(network,
        layout             = lay,
-       vertex.label       = V(network)$label,
+       vertex.label       = indicator_label,
        vertex.color       = V(network)$color,
        vertex.shape       = V(network)$shape,
        vertex.size        = V(network)$size,
-       vertex.frame.color = V(network)$frame.color,
-       vertex.frame.width = V(network)$frame.width,
+       vertex.frame.color = node_frame_color,
+       vertex.frame.width = node_frame_width,
        edge.color         = E(network)$color,
        edge.width         = E(network)$edge_width,
        asp                = FALSE,

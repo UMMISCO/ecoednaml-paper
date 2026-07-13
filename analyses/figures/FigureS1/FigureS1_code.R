@@ -1,5 +1,5 @@
 # =============================================================================
-# Script name: FigureS3_code.R
+# Script name: FigureS1_code.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
 # Date created: 2025-12-10
 # Purpose: Build a multi-panel sensitivity figure across three ecorr thresholds:
@@ -9,7 +9,7 @@
 #   Row 4 — Panels H/I/J: Zone → Module → Habitat alluvial diagrams per threshold
 # Inputs:  analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda
 #          analyses/analysis_outputs/{bininter,terinter}_output_data/*_prev_3.Rda
-# Outputs: analyses/figures/FigureS3/FigureS3.pdf
+# Outputs: analyses/figures/FigureS1/FigureS1.pdf
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -18,7 +18,7 @@
 #
 #   From REPO_ROOT, run the following commands:
 #
-#   Rscript analyses/figures/FigureS3/FigureS3_code.R
+#   Rscript analyses/figures/FigureS1/FigureS1_code.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
@@ -39,13 +39,18 @@ library(gridExtra)
 
 # Derive repo root from script location
 script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
-script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/FigureS3
+script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/FigureS1
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 
 # Allow override via environment variable (set on the remote server)
 repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 
 analyses_dir <- file.path(repo_root, "analyses")
+# Load HABITAT_RECODE / recode_habitats() so the legacy habitat codes
+# (Soft_back_reef, Reef_outer_slope, Summit50/250/500) stored in the
+# cached graph_data Rda can be mapped onto the renamed palette keys
+# (BackReef, OuterSlope, Seamount50/250/500) before plotting.
+source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 out_dir         <- script_dir
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
@@ -66,12 +71,12 @@ zone_pal <- c(
 alluvial_habitat_colors <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "Soft_back_reef"   = "#2e7d00",
-  "Reef_outer_slope" = "#4e8273",
-  "Summit50"         = "#ffe699",
+  "BackReef"   = "#2e7d00",
+  "OuterSlope" = "#4e8273",
+  "Seamount50"         = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Summit250"        = "#4a6a94",
-  "Summit500"        = "#1a3250",
+  "Seamount250"        = "#4a6a94",
+  "Seamount500"        = "#1a3250",
   "NS.habitat"       = "gray"
 )
 
@@ -124,8 +129,20 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in%
                              paste0(cols_to_rename, ".habitat")] <- cols_to_rename
 sp.chisq_habitat$assigned_class[
   sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
+# Also recode legacy habitat codes in assigned_class
+# (Soft_back_reef/Reef_outer_slope/Summit50/250/500 -> new names) so the
+# values match the renamed palette keys / factor levels used by the
+# alluvial panels.
+sp.chisq_habitat$assigned_class <- recode_habitats(sp.chisq_habitat$assigned_class)
 colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150",
                                    colnames(sp.chisq_habitat))
+# Rename column-name suffixes for the 5 renamed habitat codes too
+# (e.g. padj_PH_Summit500 -> padj_PH_Seamount500) for consistency with
+# the renamed palette keys.
+for (.old in names(HABITAT_RECODE)) {
+  colnames(sp.chisq_habitat) <- gsub(.old, HABITAT_RECODE[[.old]],
+                                     colnames(sp.chisq_habitat), fixed = TRUE)
+}
 sp.chisq_zone <- sp.chisq_posthoc
 
 zone_df <- sp.chisq_zone %>%
@@ -553,8 +570,8 @@ make_alluvial_panel <- function(net_obj, threshold_label, panel_label,
                                 cluster_order, show_legend = TRUE) {
   
   zone_order    <- c("Shallow", "Middle", "Deep", "NS.zone")
-  habitat_order <- c("Bay", "Lagoon", "Soft_back_reef", "Reef_outer_slope",
-                     "Summit50", "DeepSlope150", "Summit250", "Summit500", "NS.habitat")
+  habitat_order <- c("Bay", "Lagoon", "BackReef", "OuterSlope",
+                     "Seamount50", "DeepSlope150", "Seamount250", "Seamount500", "NS.habitat")
   
   present_modules <- unique(net_obj$node_df$Module)
   extra_modules   <- sort(setdiff(present_modules, cluster_order))
@@ -786,7 +803,7 @@ legend_row <- gridExtra::arrangeGrob(
 
 ## Canvas stretched vertically to fit the 4 data rows + legend row +
 ## Q summary at the bottom: 28 wide x 31 tall.
-pdf(file.path(out_dir, "FigureS3.pdf"),
+pdf(file.path(out_dir, "FigureS1.pdf"),
     width = 28, height = 31)
 gridExtra::grid.arrange(row1, row2, row3, row4,
                         legend_row,
@@ -795,5 +812,5 @@ gridExtra::grid.arrange(row1, row2, row3, row4,
                         heights = c(1, 1, 1, 1, 0.32, 0.75))
 dev.off()
 
-message("Done — FigureS3 saved to: ", out_dir)
+message("Done — FigureS1 saved to: ", out_dir)
 

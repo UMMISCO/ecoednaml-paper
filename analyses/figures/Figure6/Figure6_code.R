@@ -94,6 +94,12 @@ load(graph_data_path)   # -> network, lay, nodes.annot
 # -- eDNA abundance table -----------------------------------------------------
 load(dataset_path)   # -> sm
 
+# Recode legacy habitat codes (Soft_back_reef -> BackReef,
+# Reef_outer_slope -> OuterSlope, Summit50/250/500 -> Seamount50/250/500)
+# so the values in sm$sample_info$Habitat match the renamed palette
+# keys / factor levels used downstream.
+sm$sample_info$Habitat <- recode_habitats(sm$sample_info$Habitat)
+
 edna_abundance <- t(sm$X)
 
 filtered_edna_abundance       <- get_sample_by_prevalence(edna_abundance, species_prev_rate)
@@ -103,9 +109,9 @@ filtered_edna_presenceAbsence <- vegan::decostand(filtered_edna_abundance, metho
 sample.info <- sm$sample_info
 colnames(sample.info)[colnames(sample.info) == "DeepSlope"] <- "DeepSlope150"
 sample.info$Zone <- ifelse(
-  sample.info$Habitat %in% c("Bay", "Lagoon", "Reef_outer_slope", "Soft_back_reef"), "Shallow",
-  ifelse(sample.info$Habitat %in% c("Summit50", "DeepSlope150"), "Middle",
-         ifelse(sample.info$Habitat %in% c("Summit250", "Summit500"), "Deep", NA))
+  sample.info$Habitat %in% c("Bay", "Lagoon", "OuterSlope", "BackReef"), "Shallow",
+  ifelse(sample.info$Habitat %in% c("Seamount50", "DeepSlope150"), "Middle",
+         ifelse(sample.info$Habitat %in% c("Seamount250", "Seamount500"), "Deep", NA))
 )
 
 # =============================================================================
@@ -162,9 +168,19 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in% paste0(cols_to_rename
 
 # Step 2 — recode DeepSlope AFTER assigned_class column exists under its correct name
 sp.chisq_habitat$assigned_class[sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
+# Also recode legacy habitat codes in assigned_class
+# (Soft_back_reef/Reef_outer_slope/Summit50/250/500 -> new names) so the values
+# match the renamed palette keys / factor levels used by the tree rings.
+sp.chisq_habitat$assigned_class <- recode_habitats(sp.chisq_habitat$assigned_class)
 
 # Step 3 — also recode any DeepSlope column name suffixes (padj_PH_, residual_)
 colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150", colnames(sp.chisq_habitat))
+# Rename column-name suffixes for the 5 renamed habitat codes too
+# (e.g. padj_PH_Summit500 -> padj_PH_Seamount500) for consistency with
+# the renamed palette keys.
+for (.old in names(HABITAT_RECODE)) {
+  colnames(sp.chisq_habitat) <- gsub(.old, HABITAT_RECODE[[.old]], colnames(sp.chisq_habitat), fixed = TRUE)
+}
 
 nodes_tree.df <- modularity.df[, c("name", "fast_greedy")] %>%
   # Join habitat-level chi-sq assignment
@@ -290,12 +306,12 @@ zone_pal <- c(
 habitat_pal <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "Soft_back_reef"   = "#2e7d00",
-  "Reef_outer_slope" = "#4e8273",
-  "Summit50"         = "#ffe699",
+  "BackReef"   = "#2e7d00",
+  "OuterSlope" = "#4e8273",
+  "Seamount50"         = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Summit250"        = "#4a6a94",
-  "Summit500"        = "#1a3250",
+  "Seamount250"        = "#4a6a94",
+  "Seamount500"        = "#1a3250",
   "NS.habitat"       = "gray"
 )
 

@@ -9,10 +9,10 @@ The project combines an interpretable machine learning framework (**Predomics**)
 ## 🌟 Main findings
 
 - Predomics identified **55 indicator MOTUs** across three pairwise zone comparisons (Deep vs. Shallow, Deep vs. Middle, Middle vs. Shallow), with six taxa retained in all three comparisons, capturing the full depth gradient.
-- ScaleNet reconstructed a co-presence network of **261 nodes and 579 edges** from 318 MOTUs filtered at 3% prevalence; 31 of the 55 indicator MOTUs were recovered in the network.
+- ScaleNet reconstructed a co-occurrence network of **261 nodes and 579 edges** from 318 MOTUs filtered at 3% prevalence; 31 of the 55 indicator MOTUs were recovered in the network.
 - Indicator taxa occupy structurally marginal positions in the network (significantly lower betweenness centrality than non-indicator taxa), acting as zone-specific diagnostic signatures rather than community connectivity hubs.
 - Fast-Greedy modularity partitioned the network into **13 modules** that mirror depth zonation and fine-grained habitat structure beyond the three broad zones.
-- GSEA confirmed that **12 of the 13 modules** are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, Soft\_back\_reef, Reef\_outer\_slope, Summit50, DeepSlope150, Summit250, Summit500), revealing that eDNA co-presence captures habitat-associated trophic guilds rather than stochastic co-detection.
+- GSEA confirmed that **12 of the 13 modules** are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, BackReef, OuterSlope, Seamount50, DeepSlope150, Seamount250, Seamount500), revealing that eDNA co-occurrence captures habitat-associated trophic guilds rather than stochastic co-detection.
 - A power-law fit of the degree distribution placed the network just below the canonical scale-free band ($\gamma \approx 1.94$) at the default $|\text{ecorr}| > 0.5$, with the optimum scale-free regime reached between $|\text{ecorr}| > 0.5$ and $> 0.6$ ($\gamma \approx 2.08$, max log–log $R^2 = 0.91$).
 
 ## 🔄 Project pipeline
@@ -37,7 +37,7 @@ The analysis proceeds in five sequential steps. All scripts derive their working
 
 - **Chi-squared post-hoc tests**: Each MOTU is independently tested for differential occurrence across zones and habitats using a χ² test; significant taxa (Benjamini–Hochberg adjusted *p* < 0.05) are assigned to their associated zone/habitat via post-hoc pairwise χ² tests. These assignments annotate network nodes.
 
-- **Fast-Greedy modularity**: Community detection method applied to the co-presence network using the Fast-Greedy algorithm (`igraph`). Selected over Louvain (equally high modularity, same number of modules) for its full determinism and reproducibility without random initialisation.
+- **Fast-Greedy modularity**: Community detection method applied to the co-occurrence network using the Fast-Greedy algorithm (`igraph`). Selected over Louvain (equally high modularity, same number of modules) for its full determinism and reproducibility without random initialisation.
 
 - **GSEA**: Gene Set Enrichment Analysis (Piano package) tests whether each Fast-Greedy module is non-randomly enriched for taxa associated with specific zones or habitats. Taxa are ranked by Benjamini–Hochberg adjusted *p*-value with the sign of the Pearson residual as direction indicator (1,000 permutations). See [Väremo et al., 2013](https://pubmed.ncbi.nlm.nih.gov/23444143/).
 
@@ -58,9 +58,9 @@ This study uses an environmental DNA dataset collected by Baletaud et al. (2023)
 | **Sampling method** | Environmental DNA water filtration + 12S rRNA metabarcoding |
 | **Molecular marker** | 12S rRNA (fish-specific primers) |
 | **Number of MOTUs** | 967 |
-| **Number of habitat types** | 8 (Bay, Lagoon, Reef_outer_slope, Soft_back_reef, Summit50, DeepSlope150, Summit250, Summit500) |
+| **Number of habitat types** | 8 (Bay, Lagoon, OuterSlope, BackReef, Seamount50, DeepSlope150, Seamount250, Seamount500) |
 | **Depth range** | 0 – 500 m |
-| **Depth strata (for analyses)** | Shallow (Bay, Lagoon, Reef_outer_slope, Soft_back_reef), Middle (Summit50 / DeepSlope150), Deep (Summit250 / Summit500) |
+| **Depth strata (for analyses)** | Shallow (Bay, Lagoon, OuterSlope, BackReef), Middle (Seamount50 / DeepSlope150), Deep (Seamount250 / Seamount500) |
 | **Environmental covariates** | 13 (Sea Surface Temperature (SST) [SSTmax, SSTmean, SSTmin, SSTsd], SeafloorTemp, Salinity, chlorophyll-a (chla), current velocity (EastwardVelocity, NorthwardVelocity), reef Min distance (ReefMinDist.m), land distance, OTU richness, travel time to Nouméa) |
 | **Abundance normalisation** | `normFreqTC` (per-PCR relative frequency normalisation) |
 | **Prevalence filter (analyses)** | 3% of samples |

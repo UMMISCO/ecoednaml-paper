@@ -1,5 +1,5 @@
 # =================================================================================
-# Script name: FigureS1_S2.R
+# Script name: FigureS2_S3.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
 # Purpose: Build two figures
 #            - Figure S1: 4-panel figure for pairwise correlation between degree 
@@ -16,7 +16,7 @@
 #
 #   From REPO_ROOT, run the following commands:
 #
-#   Rscript analyses/figures/FigureS1_S2/FigureS1_S2_code.R
+#   Rscript analyses/figures/FigureS2_S3/FigureS2_S3_code.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
@@ -36,7 +36,7 @@ library(igraph)
 
 # Derive repo root from script location
 script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
-script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/FigureS1_S2
+script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/FigureS2_S3
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 data_dir     <- file.path(repo_root, "data")
 
@@ -93,6 +93,12 @@ load(graph_data_path)   # -> network, lay, nodes.annot
 # -- eDNA abundance table -----------------------------------------------------
 load(dataset_path)   # -> sm
 
+# Recode legacy habitat codes (Soft_back_reef -> BackReef,
+# Reef_outer_slope -> OuterSlope, Summit50/250/500 -> Seamount50/250/500)
+# so the values in sm$sample_info$Habitat match the renamed palette
+# keys / factor levels used downstream.
+sm$sample_info$Habitat <- recode_habitats(sm$sample_info$Habitat)
+
 edna_abundance <- t(sm$X)
 
 filtered_edna_abundance       <- get_sample_by_prevalence(edna_abundance, species_prev_rate)
@@ -102,9 +108,9 @@ filtered_edna_presenceAbsence <- vegan::decostand(filtered_edna_abundance, metho
 sample.info <- sm$sample_info
 colnames(sample.info)[colnames(sample.info) == "DeepSlope"] <- "DeepSlope150"
 sample.info$Zone <- ifelse(
-  sample.info$Habitat %in% c("Bay", "Lagoon", "Reef_outer_slope", "Soft_back_reef"), "Shallow",
-  ifelse(sample.info$Habitat %in% c("Summit50", "DeepSlope150"), "Middle",
-         ifelse(sample.info$Habitat %in% c("Summit250", "Summit500"), "Deep", NA))
+  sample.info$Habitat %in% c("Bay", "Lagoon", "OuterSlope", "BackReef"), "Shallow",
+  ifelse(sample.info$Habitat %in% c("Seamount50", "DeepSlope150"), "Middle",
+         ifelse(sample.info$Habitat %in% c("Seamount250", "Seamount500"), "Deep", NA))
 )
 
 # =============================================================================
@@ -138,12 +144,12 @@ distinct_13 <- c(
 habitat_pal <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "Soft_back_reef"   = "#2e7d00",
-  "Reef_outer_slope" = "#4e8273",
-  "Summit50"         = "#ffe699",
+  "BackReef"   = "#2e7d00",
+  "OuterSlope" = "#4e8273",
+  "Seamount50"         = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Summit250"        = "#4a6a94",
-  "Summit500"        = "#1a3250",
+  "Seamount250"        = "#4a6a94",
+  "Seamount500"        = "#1a3250",
   "NS.habitat"       = "gray"
 )
 
@@ -173,9 +179,19 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in% paste0(cols_to_rename
 
 # Step 2 — recode DeepSlope AFTER assigned_class column exists under its correct name
 sp.chisq_habitat$assigned_class[sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
+# Also recode legacy habitat codes in assigned_class
+# (Soft_back_reef/Reef_outer_slope/Summit50/250/500 -> new names) so the values
+# match the renamed palette keys / factor levels used downstream.
+sp.chisq_habitat$assigned_class <- recode_habitats(sp.chisq_habitat$assigned_class)
 
 # Step 3 — also recode any DeepSlope column name suffixes (padj_PH_, residual_)
 colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150", colnames(sp.chisq_habitat))
+# Rename column-name suffixes for the 5 renamed habitat codes too
+# (e.g. padj_PH_Summit500 -> padj_PH_Seamount500) for consistency with
+# the renamed palette keys.
+for (.old in names(HABITAT_RECODE)) {
+  colnames(sp.chisq_habitat) <- gsub(.old, HABITAT_RECODE[[.old]], colnames(sp.chisq_habitat), fixed = TRUE)
+}
 
 nodes_tree.df <- modularity.df[, c("name", "fast_greedy")] %>%
   # Join habitat-level chi-sq assignment — rename inside select to avoid clash
@@ -354,7 +370,7 @@ four_panel <- (pA | pB) / (pC | pD) +
   theme(legend.position = "right")
 
 ggsave(
-  filename = file.path(out_dir, "FigureS1.pdf"),
+  filename = file.path(out_dir, "FigureS2.pdf"),
   plot     = four_panel,
   width    = 14, height = 10, units = "in",
   device   = cairo_pdf
@@ -429,7 +445,7 @@ bubble_combined <- (plot_degr | plot_betw) +
         legend.box      = "horizontal")
 
 ggsave(
-  filename = file.path(out_dir, "FigureS2.pdf"),
+  filename = file.path(out_dir, "FigureS3.pdf"),
   plot     = bubble_combined,
   width    = 14, height = 7, units = "in",
   device   = cairo_pdf
