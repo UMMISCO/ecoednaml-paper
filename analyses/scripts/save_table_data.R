@@ -46,9 +46,9 @@ source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
 load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
-meta_cols <- c("Spygen", "Habitat", "Zone", "hab_inoff")
+meta_cols <- c("Station", "Habitat", "Zone", "hab_inoff")
 edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% meta_cols])
-rownames(edna_presenceAbsence) <- smX_pres_abs_matrix$Spygen
+rownames(edna_presenceAbsence) <- smX_pres_abs_matrix$Station
 
 # get samples filtered at species_prev_rate % of prevalence of the total of samples
 filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, species_prev_rate)
@@ -68,11 +68,11 @@ message("Saved: presanceAbsence_table_prev_", species_prev_rate, ".txt (",
 
 # Optionally save per-stratum and pairwise tables
 if (save_stratified) {
-  sample.info <- smX_pres_abs_matrix[, c("Spygen", "Zone")]
+  sample.info <- smX_pres_abs_matrix[, c("Station", "Zone")]
 
   presabs.df          <- as.data.frame(filtered_edna_presenceAbsence)
-  presabs.df$Spygen   <- rownames(presabs.df)
-  presabs.info.df     <- merge(presabs.df, sample.info[, c("Spygen", "Zone")], by = "Spygen", all.x = TRUE)
+  presabs.df$Station   <- rownames(presabs.df)
+  presabs.info.df     <- merge(presabs.df, sample.info[, c("Station", "Zone")], by = "Station", all.x = TRUE)
 
   save_table <- function(df, path) {
     df <- df[rowSums(df) != 0, ]
@@ -84,8 +84,8 @@ if (save_stratified) {
   # Per-stratum tables
   for (zone in unique(na.omit(presabs.info.df$Zone))) {
     tbl <- presabs.info.df[presabs.info.df$Zone %in% zone, ]
-    rownames(tbl) <- tbl$Spygen
-    tbl <- tbl[, -match(c("Spygen", "Zone"), colnames(tbl))]
+    rownames(tbl) <- tbl$Station
+    tbl <- tbl[, -match(c("Station", "Zone"), colnames(tbl))]
     save_table(tbl, file.path(analyses_dir, "files", "txt",
                               paste0("presanceAbsence_table_prev_", species_prev_rate, "_", zone, ".txt")))
   }
@@ -94,8 +94,8 @@ if (save_stratified) {
   comp <- combn(x = unique(na.omit(presabs.info.df$Zone)), m = 2, simplify = FALSE)
   for (pair in comp) {
     tbl <- presabs.info.df[presabs.info.df$Zone %in% pair, ]
-    rownames(tbl) <- tbl$Spygen
-    tbl <- tbl[, -match(c("Spygen", "Zone"), colnames(tbl))]
+    rownames(tbl) <- tbl$Station
+    tbl <- tbl[, -match(c("Station", "Zone"), colnames(tbl))]
     save_table(tbl, file.path(analyses_dir, "files", "txt",
                               paste0("presanceAbsence_table_prev_", species_prev_rate,
                                      "_", pair[[1]], "_", pair[[2]], ".txt")))

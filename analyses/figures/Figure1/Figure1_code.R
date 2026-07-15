@@ -61,6 +61,10 @@ source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 # load eDNA dataset
 load(file.path(data_dir, "seamount_integrated_dataset.rda"))
 
+# sm$X columns are Spygen-named at the source; use Station as the sample
+# identifier throughout this figure instead.
+spygen_to_station <- setNames(sm$sample_info$Station, sm$sample_info$Spygen)
+
 # get environmental data
 env_eDNA_df <- sm$sample_info
 env_eDNA_df$Habitat[env_eDNA_df$Habitat == "DeepSlope"] <- "DeepSlope150"
@@ -151,6 +155,7 @@ p1 <- ggplot() +
 
 #Get the raw data for the heatmap
 dfaims <- sm$X
+colnames(dfaims) <- spygen_to_station[colnames(dfaims)]
 #Get the metadata for the heatmap
 dfaims_meta <- sm$sample_info
 dfaims_meta$Habitat[dfaims_meta$Habitat == "DeepSlope"] <- "DeepSlope150"
@@ -159,7 +164,7 @@ dfaims_meta$Zone <- ifelse(dfaims_meta$Habitat %in% c("Bay","Lagoon","Reef_outer
                            ifelse(dfaims_meta$Habitat %in% c("Summit50", "DeepSlope150"), "Middle",
                                   ifelse(dfaims_meta$Habitat %in% c("Summit250", "Summit500"), "Deep",
                                          NA)))
-rownames(dfaims_meta) <- dfaims_meta$Spygen
+rownames(dfaims_meta) <- dfaims_meta$Station
 #Get taxo info for species
 dfaims_taxo <- sm$taxonomy
 dfaims_melt <- as.data.frame(dfaims)
@@ -255,7 +260,7 @@ p2 <- ggplot(dfaims_melt, aes(x = variable, y = feature, fill = value)) +
 
 dfaims_meta$Habitat <- factor(dfaims_meta$Habitat, levels= c("Bay","Lagoon", "Soft_back_reef", "Reef_outer_slope","Summit50", "DeepSlope150", "Summit250", "Summit500"))
 # Apply the same order to dfaims_meta (matching by sample name)
-dfaims_meta$Spygen <- factor(dfaims_meta$Spygen, levels = site_order)
+dfaims_meta$Station <- factor(dfaims_meta$Station, levels = site_order)
 
 ## Per-habitat median richness, used for dashed reference lines in each facet.
 habitat_palette <- c(
@@ -272,7 +277,7 @@ median_rich_by_habitat <- dfaims_meta %>%
   dplyr::group_by(Habitat) %>%
   dplyr::summarise(median_rich = median(MOTU_richness, na.rm = TRUE), .groups = "drop")
 
-p3 <- ggplot(dfaims_meta, aes(x = Spygen, y = MOTU_richness, fill = Habitat)) +
+p3 <- ggplot(dfaims_meta, aes(x = Station, y = MOTU_richness, fill = Habitat)) +
   geom_bar(stat = "identity") +
   ## Dashed horizontal line per facet at the median richness for that habitat,
   ## drawn in the habitat colour. show.legend = FALSE keeps the existing
@@ -316,6 +321,7 @@ p3 <- ggplot(dfaims_meta, aes(x = Spygen, y = MOTU_richness, fill = Habitat)) +
 
 
 df.all <- sm$X
+colnames(df.all) <- spygen_to_station[colnames(df.all)]
 
 ## Compute beta-diversity with jaccard  method (pairwise sample distance from presence/absence data)
 X.jac <- vegdist(x = t(df.all), method = "jaccard", binary = TRUE)
@@ -326,7 +332,7 @@ colnames(X.jac.pcoa$points) <- paste0("Dim", 1:ncol(X.jac.pcoa$points))
 #Next extract the coordinate points for plotting with ggplot the two first ordination axis
 X.jac.pcoa.df <- data.frame(X.jac.pcoa$points)
 #Add the metadata to colour points by sample variables
-X.jac.pcoa.df <- merge(X.jac.pcoa.df, sm$sample_info, by.x = 0, by.y = "Spygen", all.x=TRUE)
+X.jac.pcoa.df <- merge(X.jac.pcoa.df, sm$sample_info, by.x = 0, by.y = "Station", all.x=TRUE)
 X.jac.pcoa.df$Habitat[X.jac.pcoa.df$Habitat == "DeepSlope"] <- "DeepSlope150"
 X.jac.pcoa.df$Habitat <- factor(X.jac.pcoa.df$Habitat, levels= c("Bay","Lagoon", "Soft_back_reef", "Reef_outer_slope","Summit50", "DeepSlope150", "Summit250", "Summit500"))
 
@@ -341,8 +347,8 @@ X.jac.pcoa.df$Zone <- factor(X.jac.pcoa.df$Zone, levels=c("Shallow", "Middle", "
 numvars <- sapply(env_eDNA_df, is.numeric)
 numvars <- numvars[numvars]
 
-num_env_vars <- env_eDNA_df[, c("Spygen",names(numvars))]
-rownames(num_env_vars) <- num_env_vars$Spygen ; num_env_vars <- num_env_vars[,-1]
+num_env_vars <- env_eDNA_df[, c("Station",names(numvars))]
+rownames(num_env_vars) <- num_env_vars$Station ; num_env_vars <- num_env_vars[,-1]
 num_env_vars <- num_env_vars[, colSums(is.na(num_env_vars)) == 0]
 
 # select few variables for env fitting

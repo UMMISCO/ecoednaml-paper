@@ -15,6 +15,8 @@
 #          data/smX_pres_abs_matrix.rda                 (samples x MOTU presence/absence,
 #                                                         with Habitat/Zone/hab_inoff columns
 #                                                         used by Predomics, ScaleNet, GSEA)
+#          data/sm_taxonomy.csv                         (sm$taxonomy, one row per MOTU, used by
+#                                                         Figure6, FigureS1_S2)
 # Run:     Rscript analyses/scripts/make_db_object_clean.R
 # =============================================================================
 
@@ -72,6 +74,11 @@ db.wide <- dcast(dba,
   SSTmean + seafloorTemp + Chla + TravelTime + ReefMinDist.m ~ best_taxonomic_assignment,
   value.var = "mean_pcr_count_reads", na.rm = FALSE)
 db.wide <- as.data.frame(db.wide)
+
+# dcast sorts rows by the grouping columns, including Habitat, so row order
+# shifts whenever habitat values are renamed; sort by Spygen instead for a
+# naming-invariant, reproducible row order.
+db.wide <- db.wide[order(db.wide$Spygen), ]
 
 # Extract sample metadata and build OTU presence/absence matrix
 sample.info <- db.wide[, meta_cols]
@@ -151,18 +158,32 @@ hab_inoff_lookup <- c(
   "Seamount250" = "OFFSHORE", "Seamount500" = "OFFSHORE"
 )
 
-smX_pres_abs_matrix <- merge(sample.info[, c("Spygen", "Habitat")],
+smX_pres_abs_matrix <- merge(sample.info[, c("Spygen", "Station", "Habitat")],
                              as.data.frame(t(X)),
                              by.x = "Spygen", by.y = "row.names")
 smX_pres_abs_matrix$Zone      <- unname(zone_lookup[smX_pres_abs_matrix$Habitat])
 smX_pres_abs_matrix$hab_inoff <- unname(hab_inoff_lookup[smX_pres_abs_matrix$Habitat])
-rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Spygen
+smX_pres_abs_matrix$Spygen    <- NULL
+rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Station
 
 motu_cols <- setdiff(colnames(smX_pres_abs_matrix),
-                     c("Spygen", "Habitat", "Zone", "hab_inoff"))
-smX_pres_abs_matrix <- smX_pres_abs_matrix[, c("Spygen", "Habitat", "Zone", "hab_inoff", motu_cols)]
+                     c("Station", "Habitat", "Zone", "hab_inoff"))
+smX_pres_abs_matrix <- smX_pres_abs_matrix[, c("Station", "Habitat", "Zone", "hab_inoff", motu_cols)]
 
 out_rda_X <- file.path(data_dir, "smX_pres_abs_matrix.rda")
 save(smX_pres_abs_matrix, file = out_rda_X)
 message("Saved: smX_pres_abs_matrix.rda (",
         nrow(smX_pres_abs_matrix), " samples x ", length(motu_cols), " MOTUs)")
+
+# -----------------------------------------------------------------------------
+# Output 3: sm$taxonomy as CSV, so downstream figure scripts (e.g. Figure6,
+# FigureS1_S2) can read it without loading the full sm object.
+# -----------------------------------------------------------------------------
+taxo_out <- sm$taxonomy
+taxo_out$feature <- rownames(taxo_out)
+taxo_out <- taxo_out[, c("feature", setdiff(colnames(taxo_out), "feature"))]
+
+out_csv_taxo <- file.path(data_dir, "sm_taxonomy.csv")
+write.csv(taxo_out, out_csv_taxo, row.names = FALSE)
+message("Saved: sm_taxonomy.csv (", nrow(taxo_out), " MOTUs)")
+

@@ -54,11 +54,8 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
-                               pattern = "^graph_data_ecorr50_all_strat_", full.names = TRUE)
+                               pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
-dataset_path    <- file.path(data_dir, "seamount_integrated_dataset.rda")
-
-species_prev_rate <- 3
 
 out_pdf <- file.path(script_dir, "Figure5.pdf")
 
@@ -69,12 +66,12 @@ out_pdf <- file.path(script_dir, "Figure5.pdf")
 habitat_colors <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "Soft_back_reef"   = "#2e7d00",
-  "Reef_outer_slope" = "#4e8273",
-  "Summit50"         = "#ffe699",
+  "BackReef"   = "#2e7d00",
+  "OuterSlope" = "#4e8273",
+  "Seamount50"         = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Summit250"        = "#4a6a94",
-  "Summit500"        = "#1a3250",
+  "Seamount250"        = "#4a6a94",
+  "Seamount500"        = "#1a3250",
   "NS"               = "gray"
 )
 
@@ -96,12 +93,12 @@ alluvial_zone_colors <- c(
 alluvial_habitat_colors <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "Soft_back_reef"   = "#2e7d00",
-  "Reef_outer_slope" = "#4e8273",
-  "Summit50"         = "#ffe699",
+  "BackReef"   = "#2e7d00",
+  "OuterSlope" = "#4e8273",
+  "Seamount50"         = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Summit250"        = "#4a6a94",
-  "Summit500"        = "#1a3250",
+  "Seamount250"        = "#4a6a94",
+  "Seamount500"        = "#1a3250",
   "NS.habitat"       = "gray"
 )
 
@@ -109,24 +106,7 @@ alluvial_habitat_colors <- c(
 # LOAD DATA
 # =============================================================================
 
-load(graph_data_path)   
-
-# -- eDNA abundance table -----------------------------------------------------
-load(dataset_path)
-
-edna_abundance <- t(sm$X)
-
-filtered_edna_abundance       <- get_sample_by_prevalence(edna_abundance, species_prev_rate)
-filtered_edna_presenceAbsence <- vegan::decostand(filtered_edna_abundance, method = "pa")
-
-# -- Sample metadata ----------------------------------------------------------
-sample.info <- sm$sample_info
-colnames(sample.info)[colnames(sample.info) == "DeepSlope"] <- "DeepSlope150"
-sample.info$Zone <- ifelse(
-  sample.info$Habitat %in% c("Bay", "Lagoon", "Reef_outer_slope", "Soft_back_reef"), "Shallow",
-  ifelse(sample.info$Habitat %in% c("Summit50", "DeepSlope150"), "Middle",
-         ifelse(sample.info$Habitat %in% c("Summit250", "Summit500"), "Deep", NA))
-)
+load(graph_data_path)
 
 # =============================================================================
 # MODULE DETECTION — fast greedy on undirected graph
@@ -244,8 +224,8 @@ hab_levels     <- gsub("padj_PH_", "",
                        grep("padj_PH_", names(sp.chisq_habitat), value = TRUE))
 
 # Define the desired order
-desired_hab_order <- c("Bay", "Lagoon", "Soft_back_reef", "Reef_outer_slope",
-                       "Summit50", "DeepSlope150", "Summit250", "Summit500")
+desired_hab_order <- c("Bay", "Lagoon", "BackReef", "OuterSlope",
+                       "Seamount50", "DeepSlope150", "Seamount250", "Seamount500")
 
 hab_levels <- desired_hab_order[desired_hab_order %in% hab_levels]
 
@@ -432,8 +412,8 @@ module_order <- c("Cluster_08", "Cluster_01", "Cluster_02", "Cluster_03",
                   "Cluster_10", "Cluster_12", "Cluster_07","Cluster_11", 
                   "Cluster_13")
 
-habitat_order <- c("Bay", "Lagoon", "Soft_back_reef", "Reef_outer_slope",
-                   "Summit50", "DeepSlope150", "Summit250", "Summit500", "NS.habitat")
+habitat_order <- c("Bay", "Lagoon", "BackReef", "OuterSlope",
+                   "Seamount50", "DeepSlope150", "Seamount250", "Seamount500", "NS.habitat")
 
 alluvial_df <- modularity.df[, c("name", "fast_greedy")] %>%
   dplyr::left_join(

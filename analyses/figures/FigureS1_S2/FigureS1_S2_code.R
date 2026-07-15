@@ -78,7 +78,7 @@ mergedf.all.bplot <- data.frame(table(mergedf.all.bplot$source, mergedf.all.bplo
 # =============================================================================
 
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
-                               pattern = "^graph_data_ecorr50_all_strat_", full.names = TRUE)
+                               pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
 dataset_path    <- file.path(data_dir, "seamount_integrated_dataset.rda")
 
@@ -97,15 +97,6 @@ edna_abundance <- t(sm$X)
 
 filtered_edna_abundance       <- get_sample_by_prevalence(edna_abundance, species_prev_rate)
 filtered_edna_presenceAbsence <- vegan::decostand(filtered_edna_abundance, method = "pa")
-
-# -- Sample metadata ----------------------------------------------------------
-sample.info <- sm$sample_info
-colnames(sample.info)[colnames(sample.info) == "DeepSlope"] <- "DeepSlope150"
-sample.info$Zone <- ifelse(
-  sample.info$Habitat %in% c("Bay", "Lagoon", "Reef_outer_slope", "Soft_back_reef"), "Shallow",
-  ifelse(sample.info$Habitat %in% c("Summit50", "DeepSlope150"), "Middle",
-         ifelse(sample.info$Habitat %in% c("Summit250", "Summit500"), "Deep", NA))
-)
 
 # =============================================================================
 # MODULARITY DETECTION — fast greedy on undirected graph
@@ -138,12 +129,12 @@ distinct_13 <- c(
 habitat_pal <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "Soft_back_reef"   = "#2e7d00",
-  "Reef_outer_slope" = "#4e8273",
-  "Summit50"         = "#ffe699",
+  "BackReef"         = "#2e7d00",
+  "OuterSlope"       = "#4e8273",
+  "Seamount50"       = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Summit250"        = "#4a6a94",
-  "Summit500"        = "#1a3250",
+  "Seamount250"      = "#4a6a94",
+  "Seamount500"      = "#1a3250",
   "NS.habitat"       = "gray"
 )
 
@@ -204,10 +195,10 @@ nodes_tree.df <- nodes_tree.df[, c("name", "Habitat", "Zone", "Module")]
 
 colnames(nodes_tree.df)[colnames(nodes_tree.df)=="name"] <- "feature"
 
-taxonomy.df <- sm$taxonomy
-rownames(taxonomy.df) <- gsub(" ", ".", rownames(taxonomy.df))
+taxonomy.df <- read.csv(file.path(data_dir, "sm_taxonomy.csv"), stringsAsFactors = FALSE)
+taxonomy.df$feature <- gsub(" ", ".", taxonomy.df$feature)
 # merge with taxonomy
-nodes_tree_taxo.df <- merge(nodes_tree.df, taxonomy.df, by.x = "feature", by.y = 0, all.x = TRUE)
+nodes_tree_taxo.df <- merge(nodes_tree.df, taxonomy.df, by = "feature", all.x = TRUE)
 
 # merge with centrality metrics
 nodes_tree_taxo.df <- merge(

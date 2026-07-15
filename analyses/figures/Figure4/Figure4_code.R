@@ -43,19 +43,19 @@ repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 analyses_dir <- file.path(repo_root, "analyses")
 
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
-                               pattern = "^graph_data_ecorr50_all_strat_", full.names = TRUE)
+                               pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
 load(graph_data_path)
 
 # load indicator species — terinter model
 load(file.path(analyses_dir, "analysis_outputs", "terinter_output_data", "terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda"))
 indicSp_ter.df <- predout.bin.sub
-rm(adonis_pred.bin, adonis_pred.maxn, predout.bin, predout.bin.sub, predout.maxn, predout.maxn.sub)
+rm(adonis_pred.bin, predout.bin, predout.bin.sub)
 
 # load indicator species — bininter model
 load(file.path(analyses_dir, "analysis_outputs", "bininter_output_data", "bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda"))
 indicSp_bin.df <- predout.bin.sub
-rm(adonis_pred.bin, adonis_pred.maxn, predout.bin, predout.bin.sub, predout.maxn, predout.maxn.sub)
+rm(adonis_pred.bin, predout.bin, predout.bin.sub)
 
 keySpecies_bin <- indicSp_bin.df[indicSp_bin.df$IsIndSp == 1, ]
 keySpecies_ter <- indicSp_ter.df[indicSp_ter.df$IsIndSp == 1, ]
@@ -64,6 +64,10 @@ nodes.annot$IsIndSp <- ifelse(
   nodes.annot$name %in% keySpecies_bin$feature | nodes.annot$name %in% keySpecies_ter$feature,
   "Yes", "No"
 )
+
+## Only label indicator species — labelling all 261 nodes clutters the
+## network past readability, so non-indicator vertices get a blank label.
+vertex_labels <- ifelse(nodes.annot$IsIndSp == "Yes", V(network)$label, "")
 
 # =============================================================================
 # PANEL A — Network plot
@@ -81,7 +85,7 @@ panel_A <- cowplot::as_grob(function() {
   
   plot(network,
        layout             = lay,
-       vertex.label       = V(network)$label,
+       vertex.label       = vertex_labels,
        vertex.color       = V(network)$color,
        vertex.shape       = V(network)$shape,
        vertex.size        = V(network)$size,
@@ -115,7 +119,7 @@ panel_A <- cowplot::as_grob(function() {
 
   legend(x = 1.2, y = 0.4,
          legend = c("Indicator species", "Other"),
-         col    = c("firebrick1", NA),
+         col    = c("firebrick1", "black"),
          pch    = 21, pt.bg = "gray80", pt.lwd = 2,
          pt.cex = 1.4, bty = "n", cex = 1.1,
          title  = "Node border", title.font = 2, title.cex = 1.2)

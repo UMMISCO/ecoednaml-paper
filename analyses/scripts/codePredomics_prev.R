@@ -71,19 +71,19 @@ source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
 load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
-rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Spygen
-base_meta_cols <- c("Spygen", "Habitat", "Zone", "hab_inoff")
+rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Station
+base_meta_cols <- c("Station", "Habitat", "Zone", "hab_inoff")
 edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% base_meta_cols])
 
 # get samples filtered at the chosen prevalence rate
 filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, prevalence_rate)
 
 acc <- data.frame(filtered_edna_presenceAbsence)
-acc$Spygen <- rownames(acc)
+acc$Station <- rownames(acc)
 
 # merge presence/absence table with sample info (Zone/hab_inoff already derived from Habitat)
-acc <- merge(acc, smX_pres_abs_matrix[, base_meta_cols], by = 'Spygen', all.x = TRUE)
-rownames(acc) <- acc$Spygen
+acc <- merge(acc, smX_pres_abs_matrix[, base_meta_cols], by = 'Station', all.x = TRUE)
+rownames(acc) <- acc$Station
 
 # rename Habitat/Zone to match the habitat-group variable names used below
 colnames(acc)[colnames(acc) == "Habitat"] <- "hab"
@@ -119,7 +119,7 @@ prepare_data_for_analysis <- function(sample_data, habitat_type, hab1, hab2) {
   if (hab1 == hab2)
     stop("It seems that the habitats you entered are the same.")
 
-  meta_cols <- c('Spygen', 'hab', 'hab_inoff', 'strat_group')
+  meta_cols <- c('Station', 'hab', 'hab_inoff', 'strat_group')
 
   X <- sample_data[, !colnames(sample_data) %in% meta_cols, drop = FALSE]
   sample_X <- X[, colSums(X > 0) > 0, drop = FALSE]

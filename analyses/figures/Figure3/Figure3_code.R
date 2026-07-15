@@ -182,7 +182,6 @@ for (i in unique(mergedf.all$comparison)) {
 }
 
 # Combine the effect sizes and feature importance results into data frames for plotting
-
 effsize.df <- do.call(rbind, lapply(names(model_perf), function(comp) {
   do.call(rbind, lapply(names(model_perf[[comp]]), function(src) {
     df         <- model_perf[[comp]][[src]][["effectSizes"]]
@@ -192,7 +191,6 @@ effsize.df <- do.call(rbind, lapply(names(model_perf), function(comp) {
     df
   }))
 }))
-
 
 featImp.df <- do.call(rbind, lapply(names(model_perf), function(comp) {
   do.call(rbind, lapply(names(model_perf[[comp]]), function(src) {
@@ -223,7 +221,6 @@ effsize.df.filtered$label <- ifelse(
   ifelse(effsize.df.filtered$pval.wilcox < 0.05, "*",""))
 
 # Get all unique features and set consistent order across all plots
-
 feature_order <- featImp.df.filtered %>%
   group_by(feature) %>%  
   summarise(mean_importance = mean(abs(value), na.rm = TRUE)) %>%
@@ -365,6 +362,7 @@ fbmAUC_bininter.df <- do.call(
 
 fbmAUC.df <- rbind(fbmAUC_bininter.df, fbmAUC_terinter.df)
 fbmAUC.df$language <- factor(fbmAUC.df$language, levels=c("bininter","terinter"))
+fbmAUC.df$source   <- factor(fbmAUC.df$source,   levels = c("bininter", "terinter"))
 
 # Automatic pairwise comparisons
 comparisons_list <- levels(factor(fbmAUC.df$comparison))
@@ -377,22 +375,29 @@ model_counts <- fbmAUC.df %>%
 
 model_counts$label <- paste0("n=", model_counts$n)
 
+dodge_w <- 0.8
+y_top   <- max(fbmAUC.df$auc_, na.rm = TRUE)
+
 plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_)) +
-  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
-  geom_point(aes(colour = language),
-             position = position_jitter(width = 0.2, seed = 123),
+  geom_boxplot(aes(fill=source),
+               position = position_dodge(width=dodge_w),
+               width=0.7, alpha = 0.6, outlier.shape = NA) +
+  geom_point(aes(colour = language, group = source),
+             position = position_jitterdodge(jitter.width = 0.25, dodge.width=dodge_w, seed = 123),
              size = 2,
              alpha = 0.6
   ) +
   geom_text(data = model_counts,
-            aes(x = comparison, y = Inf, label = label),
-            vjust = 1.5, size = 8, inherit.aes = FALSE) +
-  scale_colour_manual("Source", values = source_colours) +
-  stat_compare_means(
+            aes(x = comparison, y = y_top + 0.075, label = label),
+            size = 8, inherit.aes = FALSE) +
+  scale_fill_manual("Source", values = source_colours) +
+  scale_colour_manual("Model", values = source_colours) +
+  stat_compare_means(aes(group = source),
     method = "wilcox.test",
-    comparisons = comparison_pairs,
+    # comparisons = comparison_pairs,
     label = "p.signif",
-    step.increase = 0.08,
+    # step.increase = 0.08,
+    label.y = y_top + 0.03,
     hide.ns = TRUE,
     size = 9
   ) +
@@ -401,7 +406,9 @@ plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_)) +
   ) +
   ylab("Test AUC") +
   xlab("FBM models") +
-  guides(colour = guide_legend(title = "Model"), size = "none") +
+  guides(fill = guide_legend(title = "Source",  order = 1),
+         colour = guide_legend(title = "Model",  order = 2), 
+         size = "none") +
   theme_bw() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 18),
@@ -409,7 +416,7 @@ plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_)) +
     strip.background = element_rect(fill = NA),
     axis.title = element_text(size = 20),
     legend.position = "bottom",
-    legend.text  = element_text(size = 20),
+    legend.text  = element_text(size = 18),
     legend.title = element_text(size = 20)
   )
 
@@ -446,11 +453,11 @@ permanova_analysis_source <- function(comparison, source_name) {
   all.y <- data$y
   names(all.y) <- rownames(all.X)
 
-  fbm.species <- unique(
-    tfeats.fbm[tfeats.fbm$comparison == comparison &
-                 tfeats.fbm$source     == source_name, "feature"]
-  )
-  
+  fbm.species <- unique(as.character(
+    tfeats.fbm$feature[tfeats.fbm$comparison == comparison &
+                         tfeats.fbm$source     == source_name]
+  ))
+
   if (length(fbm.species) == 0) return(NULL)
   
   subdf <- all.X[, fbm.species, drop = FALSE]

@@ -49,7 +49,7 @@ analyses_dir <- file.path(repo_root, "analyses")
 
 out_dir         <- script_dir
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
-                               pattern = "^graph_data_ecorr50_all_strat_", full.names = TRUE)
+                               pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
 
 # =============================================================================
@@ -66,12 +66,12 @@ zone_pal <- c(
 alluvial_habitat_colors <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "Soft_back_reef"   = "#2e7d00",
-  "Reef_outer_slope" = "#4e8273",
-  "Summit50"         = "#ffe699",
+  "BackReef"   = "#2e7d00",
+  "OuterSlope" = "#4e8273",
+  "Seamount50"         = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Summit250"        = "#4a6a94",
-  "Summit500"        = "#1a3250",
+  "Seamount250"        = "#4a6a94",
+  "Seamount500"        = "#1a3250",
   "NS.habitat"       = "gray"
 )
 
@@ -553,8 +553,8 @@ make_alluvial_panel <- function(net_obj, threshold_label, panel_label,
                                 cluster_order, show_legend = TRUE) {
   
   zone_order    <- c("Shallow", "Middle", "Deep", "NS.zone")
-  habitat_order <- c("Bay", "Lagoon", "Soft_back_reef", "Reef_outer_slope",
-                     "Summit50", "DeepSlope150", "Summit250", "Summit500", "NS.habitat")
+  habitat_order <- c("Bay", "Lagoon", "BackReef", "OuterSlope",
+                     "Seamount50", "DeepSlope150", "Seamount250", "Seamount500", "NS.habitat")
   
   present_modules <- unique(net_obj$node_df$Module)
   extra_modules   <- sort(setdiff(present_modules, cluster_order))
