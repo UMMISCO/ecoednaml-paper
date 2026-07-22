@@ -1,5 +1,5 @@
 # =============================================================================
-# Script name: FigureS3_code.R
+# Script name: FigureS1_code.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
 # Date created: 2025-12-10
 # Purpose: Build a multi-panel sensitivity figure across three ecorr thresholds:
@@ -9,7 +9,7 @@
 #   Row 4 — Panels H/I/J: Zone → Module → Habitat alluvial diagrams per threshold
 # Inputs:  analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda
 #          analyses/analysis_outputs/{bininter,terinter}_output_data/*_prev_3.Rda
-# Outputs: analyses/figures/FigureS3/FigureS3.pdf
+# Outputs: analyses/figures/FigureS1/FigureS1.pdf
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -18,7 +18,7 @@
 #
 #   From REPO_ROOT, run the following commands:
 #
-#   Rscript analyses/figures/FigureS3/FigureS3_code.R
+#   Rscript analyses/figures/FigureS1/FigureS1_code.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
@@ -39,7 +39,7 @@ library(gridExtra)
 
 # Derive repo root from script location
 script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
-script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/FigureS3
+script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/FigureS1
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 
 # Allow override via environment variable (set on the remote server)
@@ -786,7 +786,7 @@ legend_row <- gridExtra::arrangeGrob(
 
 ## Canvas stretched vertically to fit the 4 data rows + legend row +
 ## Q summary at the bottom: 28 wide x 31 tall.
-pdf(file.path(out_dir, "FigureS3.pdf"),
+pdf(file.path(out_dir, "FigureS1.pdf"),
     width = 28, height = 31)
 gridExtra::grid.arrange(row1, row2, row3, row4,
                         legend_row,
@@ -795,5 +795,5 @@ gridExtra::grid.arrange(row1, row2, row3, row4,
                         heights = c(1, 1, 1, 1, 0.32, 0.75))
 dev.off()
 
-message("Done — FigureS3 saved to: ", out_dir)
+message("Done — FigureS1 saved to: ", out_dir)
 

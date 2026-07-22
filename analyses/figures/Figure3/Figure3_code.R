@@ -286,10 +286,7 @@ featImp.df.filtered$sign <- factor(featImp.df.filtered$sign, levels=c("-1","1"))
 featImp.df.filtered$source <- factor(featImp.df.filtered$source, 
                                      levels=c("bininter","terinter"))
 
-## Okabe-Ito colour-blind-safe pair, equally weighted so neither
-## source visually outranks the other (was black + gray80, which
-## made terinter read as a de-emphasised version of bininter even
-## though terinter was the stronger model in panel C).
+
 source_colours <- c("bininter" = "#0072B2",  # steel blue
                     "terinter" = "#D55E00")  # dark vermillion
 

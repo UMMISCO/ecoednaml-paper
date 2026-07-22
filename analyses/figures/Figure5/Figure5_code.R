@@ -108,6 +108,25 @@ alluvial_habitat_colors <- c(
 
 load(graph_data_path)
 
+# Indicator MOTUs (retained by bininter or terinter Predomics models),
+# labelled on panels A and B — same rule as Figure 4.
+load(file.path(analyses_dir, "analysis_outputs",
+               "bininter_output_data",
+               "bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda"))
+indicSp_bin.df <- predout.bin.sub
+rm(adonis_pred.bin, predout.bin, predout.bin.sub)
+load(file.path(analyses_dir, "analysis_outputs",
+               "terinter_output_data",
+               "terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda"))
+indicSp_ter.df <- predout.bin.sub
+rm(adonis_pred.bin, predout.bin, predout.bin.sub)
+indicator_names <- unique(c(
+  as.character(indicSp_bin.df$feature[indicSp_bin.df$IsIndSp == 1]),
+  as.character(indicSp_ter.df$feature[indicSp_ter.df$IsIndSp == 1])
+))
+is_indicator    <- V(network)$name %in% indicator_names
+indicator_label <- ifelse(is_indicator, V(network)$label, NA)
+
 # =============================================================================
 # MODULE DETECTION — fast greedy on undirected graph
 # =============================================================================
@@ -263,12 +282,18 @@ panel_A <- cowplot::as_grob(function() {
   
   plot(network,
        layout             = lay,
-       vertex.label       = V(network)$label,
+       vertex.label       = indicator_label,
        vertex.color       = V(network)$color.habitat,
        vertex.shape       = V(network)$shape,
        vertex.size        = V(network)$size,
-       vertex.frame.color = V(network)$frame.color,
-       vertex.frame.width = V(network)$frame.width,
+       vertex.frame.color = ifelse(is.na(V(network)$frame.color) |
+                                     V(network)$frame.color == "" |
+                                     V(network)$frame.color == "gray50",
+                                   "grey15", V(network)$frame.color),
+       vertex.frame.width = ifelse(is.na(V(network)$frame.width) |
+                                     V(network)$frame.width == 0 |
+                                     V(network)$frame.width < 1.5,
+                                   1.8, V(network)$frame.width),
        edge.color         = E(network)$color,
        edge.width         = E(network)$edge_width,
        asp                = FALSE,
@@ -327,12 +352,18 @@ panel_B <- cowplot::as_grob(function() {
   
   plot(network,
        layout             = lay,
-       vertex.label       = V(network)$label,
+       vertex.label       = indicator_label,
        vertex.color       = node_cluster_colors,
        vertex.shape       = V(network)$shape,
        vertex.size        = V(network)$size,
-       vertex.frame.color = V(network)$frame.color,
-       vertex.frame.width = V(network)$frame.width,
+       vertex.frame.color = ifelse(is.na(V(network)$frame.color) |
+                                     V(network)$frame.color == "" |
+                                     V(network)$frame.color == "gray50",
+                                   "grey15", V(network)$frame.color),
+       vertex.frame.width = ifelse(is.na(V(network)$frame.width) |
+                                     V(network)$frame.width == 0 |
+                                     V(network)$frame.width < 1.5,
+                                   1.8, V(network)$frame.width),
        edge.color         = E(network)$color,
        edge.width         = E(network)$edge_width,
        asp                = FALSE,

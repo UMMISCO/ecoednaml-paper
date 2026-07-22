@@ -7,7 +7,9 @@
 #   Panel B — Heatmap of MOTU abundance across samples (ordered by clustering)
 #   Panel C — Species richness barplot per sample and habitat
 #   Panel D — PCoA of Jaccard beta-diversity with environmental fitting
-# Inputs:  data/seamount_integrated_dataset.rda
+# Inputs:  data/smX_pres_abs_matrix.rda, 
+#          data/sm_taxonomy.csv
+#          data/sm_sample_info.csv
 # Outputs: analyses/figures/Figure1/Figure1.pdf
 # =============================================================================
 
@@ -58,22 +60,17 @@ data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
 analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
-# load eDNA dataset
-load(file.path(data_dir, "seamount_integrated_dataset.rda"))
+# load eDNA dataset (outputs of make_db_object_clean.R)
+load(file.path(data_dir, "smX_pres_abs_matrix.rda"))   # -> smX_pres_abs_matrix (samples x MOTU, rownames/Station, with Habitat/Zone/hab_inoff)
+taxonomy_df <- read.csv(file.path(data_dir, "sm_taxonomy.csv"), stringsAsFactors = FALSE)
+rownames(taxonomy_df) <- taxonomy_df$feature
+sample_info <- read.csv(file.path(data_dir, "sm_sample_info.csv"), stringsAsFactors = FALSE)
 
-# sm$X columns are Spygen-named at the source; use Station as the sample
-# identifier throughout this figure instead.
-spygen_to_station <- setNames(sm$sample_info$Station, sm$sample_info$Spygen)
+# Station-level Habitat/Zone/hab_inoff, already derived once in make_db_object_clean.R
+station_meta <- smX_pres_abs_matrix[, c("Station", "Habitat", "Zone", "hab_inoff")]
 
-# get environmental data
-env_eDNA_df <- sm$sample_info
-env_eDNA_df$Habitat[env_eDNA_df$Habitat == "DeepSlope"] <- "DeepSlope150"
-
-# env_eDNA_df$Zone <- ifelse(env_eDNA_df$Habitat %in% c("Bay","Lagoon","Reef_outer_slope", "Soft_back_reef"), "INSHORE", "OFFSHORE")
-env_eDNA_df$Zone <- ifelse(env_eDNA_df$Habitat %in% c("Bay","Lagoon","Reef_outer_slope", "Soft_back_reef"), "Shallow",
-                           ifelse(env_eDNA_df$Habitat %in% c("Summit50", "DeepSlope150"), "Middle",
-                                  ifelse(env_eDNA_df$Habitat %in% c("Summit250", "Summit500"), "Deep",
-                                         NA)))
+# get environmental data (per-sample metadata, enriched with Zone/hab_inoff by Station)
+env_eDNA_df <- merge(sample_info, station_meta[, c("Station", "Zone", "hab_inoff")], by = "Station")
 env_eDNA_sf <- st_as_sf(env_eDNA_df, coords = c('Longitude', 'Latitude'), crs=4326)
 
 # Use the bounding box of the sample points to set the map extent
@@ -102,7 +99,7 @@ bbox_expanded["xmin"] <- bbox["xmin"] - long_expansion
 bbox_expanded["xmax"] <- bbox["xmax"] + long_expansion
 
 # factorize Habitat and Zone
-env_eDNA_df$Habitat <- factor(env_eDNA_df$Habitat, levels= c("Bay","Lagoon", "Soft_back_reef", "Reef_outer_slope","Summit50", "DeepSlope150", "Summit250", "Summit500"))
+env_eDNA_df$Habitat <- factor(env_eDNA_df$Habitat, levels= c("Bay","Lagoon", "BackReef", "OuterSlope","Seamount50", "DeepSlope150", "Seamount250", "Seamount500"))
 env_eDNA_df$Zone <- factor(env_eDNA_df$Zone, levels= c("Shallow","Middle", "Deep"))
 
 p1 <- ggplot() +
@@ -116,14 +113,14 @@ p1 <- ggplot() +
     position = position_jitter(width = 0.15, height = 0.15)
   ) +
   scale_color_manual(values = c(
-    "Bay" = "#5ae6ab", 
-    "Lagoon" = "#88d941", 
-    "Soft_back_reef" = "#2e7d00",
-    "Reef_outer_slope" = "#4e8273", 
-    "Summit50" = "#ffe699", 
-    "DeepSlope150" = "#d79c3b", 
-    "Summit250" = "#4a6a94", 
-    "Summit500" = "#1a3250"
+    "Bay" = "#5ae6ab",
+    "Lagoon" = "#88d941",
+    "BackReef" = "#2e7d00",
+    "OuterSlope" = "#4e8273",
+    "Seamount50" = "#ffe699",
+    "DeepSlope150" = "#d79c3b",
+    "Seamount250" = "#4a6a94",
+    "Seamount500" = "#1a3250"
   )) +
   scale_shape_manual(values = c(16, 17, 15)) +
   coord_sf(
@@ -153,20 +150,14 @@ p1 <- ggplot() +
 
 # Heatmap of co-abundance patterns across samples
 
-#Get the raw data for the heatmap
-dfaims <- sm$X
-colnames(dfaims) <- spygen_to_station[colnames(dfaims)]
+#Get the raw data for the heatmap (MOTU x Station, presence/absence)
+motu_cols <- setdiff(colnames(smX_pres_abs_matrix), c("Station", "Habitat", "Zone", "hab_inoff"))
+dfaims <- t(as.matrix(smX_pres_abs_matrix[, motu_cols]))
 #Get the metadata for the heatmap
-dfaims_meta <- sm$sample_info
-dfaims_meta$Habitat[dfaims_meta$Habitat == "DeepSlope"] <- "DeepSlope150"
-# dfaims_meta$Zone <- ifelse(dfaims_meta$Habitat %in% c("Bay","Lagoon","Reef_outer_slope", "Soft_back_reef"), "INSHORE", "OFFSHORE")
-dfaims_meta$Zone <- ifelse(dfaims_meta$Habitat %in% c("Bay","Lagoon","Reef_outer_slope", "Soft_back_reef"), "Shallow",
-                           ifelse(dfaims_meta$Habitat %in% c("Summit50", "DeepSlope150"), "Middle",
-                                  ifelse(dfaims_meta$Habitat %in% c("Summit250", "Summit500"), "Deep",
-                                         NA)))
+dfaims_meta <- merge(sample_info[, c("Station", "Site", "MOTU_richness")], station_meta, by = "Station")
 rownames(dfaims_meta) <- dfaims_meta$Station
 #Get taxo info for species
-dfaims_taxo <- sm$taxonomy
+dfaims_taxo <- taxonomy_df
 dfaims_melt <- as.data.frame(dfaims)
 dfaims_melt$feature <- rownames(dfaims)
 dfaims_melt <- melt(dfaims_melt)
@@ -188,9 +179,7 @@ dfaims_clust.samples <- hclust(dist(t(dfaims), method = "euclidean"), method = "
 dfaims_melt$feature <- factor(dfaims_melt$feature, levels = taxo_motu_order)
 dfaims_melt$variable <- factor(dfaims_melt$variable, levels = dfaims_clust.samples$labels[dfaims_clust.samples$order])
 dfaims_melt <- merge(dfaims_melt, dfaims_meta[,c("Habitat", "Zone", "Site")], by.x="variable", by.y=0, all.x=TRUE)
-dfaims_taxo$feature <- rownames(dfaims_taxo)
 dfaims_melt <- merge(dfaims_melt, dfaims_taxo[,c("order","family","genus", "tax_name")], by.x="feature", by.y=0, all.x=TRUE)
-dfaims_melt$Habitat[dfaims_melt$Habitat == "DeepSlope"] <- "DeepSlope150"
 
 # get samples with species at least 10% prevalence across samples
 dfaims_3_prev_species= get_sample_by_prevalence(t(dfaims), 3)
@@ -205,7 +194,7 @@ dfaims_melt$prev_rate <- ifelse(dfaims_melt$feature %in% colnames(dfaims_3_prev_
 # Factorize prev_rate
 dfaims_melt$prev_rate= as.factor(dfaims_melt$prev_rate)
 
-dfaims_melt$Habitat= factor(dfaims_melt$Habitat, levels= c("Bay","Lagoon", "Soft_back_reef", "Reef_outer_slope","Summit50", "DeepSlope150", "Summit250", "Summit500"))
+dfaims_melt$Habitat= factor(dfaims_melt$Habitat, levels= c("Bay","Lagoon", "BackReef", "OuterSlope","Seamount50", "DeepSlope150", "Seamount250", "Seamount500"))
 dfaims_melt$Zone= factor(dfaims_melt$Zone, levels= c("Shallow","Middle", "Deep"))
 
 
@@ -220,25 +209,25 @@ site_order <- dfaims_melt %>%
 dfaims_melt$variable <- factor(dfaims_melt$variable, levels = site_order)
 
 
-## Zero values represent ABSENT MOTUs in a sample -- render them as empty
-## (white) cells rather than colour them at the low end of the viridis
-## scale. Setting them to NA so na.value = 'white' in the scale picks them
-## up. Non-zero counts are then log-scaled on the colour gradient.
-dfaims_melt$value[!is.na(dfaims_melt$value) & dfaims_melt$value == 0] <- NA
+## Convert to binary presence/absence: any non-zero read count = presence.
+## Consistent with the rest of the pipeline (Jaccard, Predomics, ScaleNet)
+## which all operate on presence/absence rather than raw abundance.
+dfaims_melt$presence <- factor(
+  ifelse(is.na(dfaims_melt$value) | dfaims_melt$value == 0, "Absent", "Present"),
+  levels = c("Absent", "Present"))
 
-p2 <- ggplot(dfaims_melt, aes(x = variable, y = feature, fill = value)) +
+p2 <- ggplot(dfaims_melt, aes(x = variable, y = feature, fill = presence)) +
   geom_tile(colour = NA, linewidth = 0.5) +
-  ## Log-transformed colour scale (log1p) over non-zero abundance values.
-  ## Uses the full viridis palette; zero cells render white via na.value.
-  scale_fill_viridis_c(
-    name      = "MOTU abundance (log scale)",
-    trans     = "log1p",
-    na.value  = "white",
-    guide     = guide_colorbar(
-      barwidth       = unit(8, "cm"),
-      barheight      = unit(0.6, "cm"),
+  scale_fill_manual(
+    name   = NULL,
+    values = c("Absent" = "white", "Present" = "#3B1A3C"),
+    breaks = c("Present", "Absent"),
+    guide  = guide_legend(
+      keywidth       = unit(0.6, "cm"),
+      keyheight      = unit(0.6, "cm"),
       title.position = "top",
-      title.hjust    = 0.5
+      title.hjust    = 0.5,
+      override.aes   = list(colour = "grey40")
     )
   ) +
   ylab("MOTUs") +
@@ -258,7 +247,7 @@ p2 <- ggplot(dfaims_melt, aes(x = variable, y = feature, fill = value)) +
 
 #richness barplot
 
-dfaims_meta$Habitat <- factor(dfaims_meta$Habitat, levels= c("Bay","Lagoon", "Soft_back_reef", "Reef_outer_slope","Summit50", "DeepSlope150", "Summit250", "Summit500"))
+dfaims_meta$Habitat <- factor(dfaims_meta$Habitat, levels= c("Bay","Lagoon", "BackReef", "OuterSlope","Seamount50", "DeepSlope150", "Seamount250", "Seamount500"))
 # Apply the same order to dfaims_meta (matching by sample name)
 dfaims_meta$Station <- factor(dfaims_meta$Station, levels = site_order)
 
@@ -266,12 +255,12 @@ dfaims_meta$Station <- factor(dfaims_meta$Station, levels = site_order)
 habitat_palette <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "Soft_back_reef"   = "#2e7d00",
-  "Reef_outer_slope" = "#4e8273",
-  "Summit50"         = "#ffe699",
+  "BackReef"         = "#2e7d00",
+  "OuterSlope"       = "#4e8273",
+  "Seamount50"       = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Summit250"        = "#4a6a94",
-  "Summit500"        = "#1a3250"
+  "Seamount250"      = "#4a6a94",
+  "Seamount500"      = "#1a3250"
 )
 median_rich_by_habitat <- dfaims_meta %>%
   dplyr::group_by(Habitat) %>%
@@ -320,8 +309,7 @@ p3 <- ggplot(dfaims_meta, aes(x = Station, y = MOTU_richness, fill = Habitat)) +
 ################
 
 
-df.all <- sm$X
-colnames(df.all) <- spygen_to_station[colnames(df.all)]
+df.all <- dfaims
 
 ## Compute beta-diversity with jaccard  method (pairwise sample distance from presence/absence data)
 X.jac <- vegdist(x = t(df.all), method = "jaccard", binary = TRUE)
@@ -332,15 +320,8 @@ colnames(X.jac.pcoa$points) <- paste0("Dim", 1:ncol(X.jac.pcoa$points))
 #Next extract the coordinate points for plotting with ggplot the two first ordination axis
 X.jac.pcoa.df <- data.frame(X.jac.pcoa$points)
 #Add the metadata to colour points by sample variables
-X.jac.pcoa.df <- merge(X.jac.pcoa.df, sm$sample_info, by.x = 0, by.y = "Station", all.x=TRUE)
-X.jac.pcoa.df$Habitat[X.jac.pcoa.df$Habitat == "DeepSlope"] <- "DeepSlope150"
-X.jac.pcoa.df$Habitat <- factor(X.jac.pcoa.df$Habitat, levels= c("Bay","Lagoon", "Soft_back_reef", "Reef_outer_slope","Summit50", "DeepSlope150", "Summit250", "Summit500"))
-
-X.jac.pcoa.df$Zone <- ifelse(X.jac.pcoa.df$Habitat %in% c("Bay","Lagoon","Reef_outer_slope", "Soft_back_reef"), "Shallow",
-                             ifelse(X.jac.pcoa.df$Habitat %in% c("Summit50", "DeepSlope150"), "Middle",
-                                    ifelse(X.jac.pcoa.df$Habitat %in% c("Summit250", "Summit500"), "Deep",
-                                           NA)))
-
+X.jac.pcoa.df <- merge(X.jac.pcoa.df, env_eDNA_df, by.x = 0, by.y = "Station", all.x=TRUE)
+X.jac.pcoa.df$Habitat <- factor(X.jac.pcoa.df$Habitat, levels= c("Bay","Lagoon", "BackReef", "OuterSlope","Seamount50", "DeepSlope150", "Seamount250", "Seamount500"))
 X.jac.pcoa.df$Zone <- factor(X.jac.pcoa.df$Zone, levels=c("Shallow", "Middle", "Deep"))
 
 # Prepare environmental variables
@@ -383,7 +364,7 @@ ef.jac.plot <- ggplot(X.jac.pcoa.df) +
   geom_text_repel(data = ef.jac.df, aes(x = Dim1, y = Dim2, label = rownames(ef.jac.df)), size = 6, fontface = "bold")+ 
   xlab(paste("PCo1_Jac [", signif((X.jac.pcoa$eig[1]/sum(X.jac.pcoa$eig)),3)*100,"%]", sep="")) +
   ylab(paste("PCo2_Jac [", signif((X.jac.pcoa$eig[2]/sum(X.jac.pcoa$eig)),3)*100,"%]", sep="")) +
-  scale_color_manual(values = c("Bay" = "#5ae6ab", "Lagoon" = "#88d941", "Soft_back_reef" = "#2e7d00","Reef_outer_slope" = "#4e8273", "Summit50" = "#ffe699", "DeepSlope" = "#d79c3b", "Summit250" = "#4a6a94", "Summit500" = "#1a3250"))+
+  scale_color_manual(values = c("Bay" = "#5ae6ab", "Lagoon" = "#88d941", "BackReef" = "#2e7d00","OuterSlope" = "#4e8273", "Seamount50" = "#ffe699", "DeepSlope150" = "#d79c3b", "Seamount250" = "#4a6a94", "Seamount500" = "#1a3250"))+
   stat_ellipse(aes(x=Dim1, y=Dim2, fill=Zone), geom="polygon", alpha=0.15) +
   scale_fill_manual(values = c(
     "Shallow" = "#5ae6ab",

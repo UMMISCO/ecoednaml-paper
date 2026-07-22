@@ -79,9 +79,6 @@ mergedf.all.bplot <- data.frame(table(mergedf.all.bplot$source, mergedf.all.bplo
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
                                pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
-dataset_path    <- file.path(data_dir, "seamount_integrated_dataset.rda")
-
-species_prev_rate <- 3
 
 # out_pdf <- file.path(script_dir, paste0("Figure6_", Sys.Date(), ".pdf"))
 
@@ -90,14 +87,6 @@ species_prev_rate <- 3
 # =============================================================================
 
 load(graph_data_path)   # -> network, lay, nodes.annot
-
-# -- eDNA abundance table -----------------------------------------------------
-load(dataset_path)   # -> sm
-
-edna_abundance <- t(sm$X)
-
-filtered_edna_abundance       <- get_sample_by_prevalence(edna_abundance, species_prev_rate)
-filtered_edna_presenceAbsence <- vegan::decostand(filtered_edna_abundance, method = "pa")
 
 # =============================================================================
 # MODULE DETECTION — fast greedy on undirected graph

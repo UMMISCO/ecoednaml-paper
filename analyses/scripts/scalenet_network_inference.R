@@ -30,7 +30,6 @@ ecorr_percent <- as.numeric(args[1])
 
 # Check for required packages
 # Note: scalenet — contact authors or install from source
-#       momr     — remotes::install_github("eprifti/momr")
 required_pkgs <- c("reshape2", "plyr", "scalenet", "chisq.posthoc.test", "igraph")
 missing_pkgs  <- required_pkgs[!sapply(required_pkgs, requireNamespace, quietly = TRUE)]
 if (length(missing_pkgs) > 0)
@@ -43,7 +42,7 @@ library(scalenet)
 library(chisq.posthoc.test)
 library(igraph)
 
-# set.seed(42)
+set.seed(8)
 
 # define paths
 script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
@@ -223,19 +222,10 @@ results_path <- file.path(analyses_dir, "analysis_outputs", "scalenet_results")
 
 # Remove recursively the content of results_path to avoid errors
 if (dir.exists(results_path)) {
-  # unlink(results_path, recursive = TRUE)
   message("Directory existed: ", results_path)
 } else {
   message("Directory does not exist: ", results_path)
-  # Create a consensus from Scalenet
-  # Re-seed immediately before the stochastic step (bayes_hc uses random
-  # restarts): a single set.seed() at the top of the script only guarantees
-  # reproducibility if everything before this point consumes the RNG
-  # identically across runs, which isn't a safe assumption.
-  # Seed 8 was found (by search, over the current presanceAbsence_table_prev_3.txt
-  # input) to reproduce the 261-node / 579-edge network matching
-  # graph_data_ecorr50_all_strat_2026-05-12.rda.
-  set.seed(8)
+  # set.seed(8)
   tmp <- scs(workspaceDir = results_path,
              argInData = as.data.frame(df),
              argReconsMeth = c("aracne", "bayes_hc"),
@@ -445,7 +435,7 @@ habitat_colors <- c(
 V(network)$color.habitat <- habitat_colors[factor(nodes.annot$assigned_class.habitat,
                                           levels = names(habitat_colors))]
 
-V(network)$frame.color <- ifelse(nodes.annot$name %in% keySpecies_bin$feature | nodes.annot$name %in% keySpecies_ter$feature, "firebrick1", "black")
+V(network)$frame.color <- ifelse(nodes.annot$name %in% keySpecies_bin$feature | nodes.annot$name %in% keySpecies_ter$feature, "firebrick1", NA)
 V(network)$frame.width <- 3
 V(network)$alpha       <- 0.6
 V(network)$label.dist  <- 0.5
@@ -494,13 +484,7 @@ print(paste("There are",vcount(network),"nodes and",ecount(network),"edges"))
 
 summary(network)
 
-## Seed 4902 found by search over 20,000 candidates (scored by fit of
-## cluster-centroid anchors -- giant component plus the Beryx/
-## Myctophiformes/Actinopteri/Myctophidae/Mugiliformes satellite
-## components -- against pixel positions from the target reference
-## figure, no rotation/reflection correction applied) to match the
-## raw layout_with_fr orientation in that reference figure.
-set.seed(4902)
+set.seed(100)
 lay <- layout_with_fr(network)
 
 n_nodes <- vcount(network)
@@ -564,7 +548,7 @@ legend(x = 1.2, y = 0.7,
 
 legend(x = 1.2, y = 0.4,
        legend = c("Indicator species", "Other"),
-       col    = c("firebrick1", "black"),
+       col    = c("firebrick1", NA),
        pch    = 21, pt.bg = "gray80", pt.lwd = 2,
        pt.cex = 1.0, bty = "n", cex = 0.8,
        title  = "Node border")

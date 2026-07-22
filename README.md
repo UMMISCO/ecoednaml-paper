@@ -9,10 +9,10 @@ The project combines an interpretable machine learning framework (**Predomics**)
 ## 🌟 Main findings
 
 - Predomics identified **55 indicator MOTUs** across three pairwise zone comparisons (Deep vs. Shallow, Deep vs. Middle, Middle vs. Shallow), with six taxa retained in all three comparisons, capturing the full depth gradient.
-- ScaleNet reconstructed a co-presence network of **261 nodes and 579 edges** from 318 MOTUs filtered at 3% prevalence; 31 of the 55 indicator MOTUs were recovered in the network.
+- ScaleNet reconstructed a co-occurrence network of **261 nodes and 579 edges** from 318 MOTUs filtered at 3% prevalence; 31 of the 55 indicator MOTUs were recovered in the network.
 - Indicator taxa occupy structurally marginal positions in the network (significantly lower betweenness centrality than non-indicator taxa), acting as zone-specific diagnostic signatures rather than community connectivity hubs.
 - Fast-Greedy modularity partitioned the network into **13 modules** that mirror depth zonation and fine-grained habitat structure beyond the three broad zones.
-- GSEA confirmed that **12 of the 13 modules** are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, BackReef, OuterSlope, Seamount50, DeepSlope150, Seamount250, Seamount500), revealing that eDNA co-presence captures habitat-associated trophic guilds rather than stochastic co-detection.
+- GSEA confirmed that **12 of the 13 modules** are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, BackReef, OuterSlope, Seamount50, DeepSlope150, Seamount250, Seamount500), revealing that eDNA co-occurrence captures habitat-associated trophic guilds rather than stochastic co-detection.
 - A power-law fit of the degree distribution placed the network just below the canonical scale-free band ($\gamma \approx 1.94$) at the default $|\text{ecorr}| > 0.5$, with the optimum scale-free regime reached between $|\text{ecorr}| > 0.5$ and $> 0.6$ ($\gamma \approx 2.08$, max log–log $R^2 = 0.91$).
 
 ## 🔄 Project pipeline
@@ -29,7 +29,7 @@ The analysis proceeds in five sequential steps. All scripts derive their working
 | 3. Network inference | `analyses/scripts/scalenet_network_inference.R` | `graph_data/graph_data_ecorr50_all_strat_<date>.rda` |
 | 4. Figures | `analyses/figures/FigureN/FigureN_code.R` | Publication figures (PDF) |
 
-Steps 1–3 read `smX_pres_abs_matrix.rda` from step 0 — a samples × MOTU presence/absence table with `Habitat`, `Zone`, and `hab_inoff` grouping columns already attached. The figure scripts (step 4) still read `seamount_integrated_dataset.rda`, produced by the original `analyses/scripts/make_db_object.R`, for sample metadata, taxonomy, and PCoA ordination.
+Steps 1–3 read `smX_pres_abs_matrix.rda` from step 0 — a samples × MOTU presence/absence table with `Habitat`, `Zone`, and `hab_inoff` grouping columns already attached. Most figure scripts (step 4) read `smX_pres_abs_matrix.rda` and `sm_taxonomy.csv`, also produced by step 0, for taxonomy and sample metadata; Figure 1 additionally reads `sm_sample_info.csv` (per-sample metadata) for the map and PCoA panels.
 
 ## ⚙️ Methods
 
@@ -39,7 +39,7 @@ Steps 1–3 read `smX_pres_abs_matrix.rda` from step 0 — a samples × MOTU pre
 
 - **Chi-squared post-hoc tests**: Each MOTU is independently tested for differential occurrence across zones and habitats using a χ² test; significant taxa (Benjamini–Hochberg adjusted *p* < 0.05) are assigned to their associated zone/habitat via post-hoc pairwise χ² tests. These assignments annotate network nodes.
 
-- **Fast-Greedy modularity**: Community detection method applied to the co-presence network using the Fast-Greedy algorithm (`igraph`). Selected over Louvain (equally high modularity, same number of modules) for its full determinism and reproducibility without random initialisation.
+- **Fast-Greedy modularity**: Community detection method applied to the co-occurrence network using the Fast-Greedy algorithm (`igraph`). Selected over Louvain (equally high modularity, same number of modules) for its full determinism and reproducibility without random initialisation.
 
 - **GSEA**: Gene Set Enrichment Analysis (Piano package) tests whether each Fast-Greedy module is non-randomly enriched for taxa associated with specific zones or habitats. Taxa are ranked by Benjamini–Hochberg adjusted *p*-value with the sign of the Pearson residual as direction indicator (1,000 permutations). See [Väremo et al., 2013](https://pubmed.ncbi.nlm.nih.gov/23444143/).
 

@@ -1,11 +1,11 @@
 # =================================================================================
-# Script name: FigureS1_S2.R
+# Script name: FigureS2_S3.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
 # Purpose: Build two figures
-#            - Figure S1: 4-panel figure for pairwise correlation between degree 
+#            - Figure S2: 4-panel figure for pairwise correlation between degree
 #                         centrality, betweeness centrality and feature importance; 
 #                         and a scatterplot3D showing all these metrics
-#            - Figure S2: Get the top 20 MOTUs based on betweeness centrality and 
+#            - Figure S3: Get the top 20 MOTUs based on betweeness centrality and
 #                         degree centraily
 # =================================================================================
 
@@ -16,7 +16,7 @@
 #
 #   From REPO_ROOT, run the following commands:
 #
-#   Rscript analyses/figures/FigureS1_S2/FigureS1_S2_code.R
+#   Rscript analyses/figures/FigureS2_S3/FigureS2_S3_code.R
 # -----------------------------------------------------------------------------
 
 # Check for required packages
@@ -36,7 +36,7 @@ library(igraph)
 
 # Derive repo root from script location
 script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
-script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/FigureS1_S2
+script_dir   <- dirname(script_path)                      # <repo>/analyses/figures/FigureS2_S3
 repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 data_dir     <- file.path(repo_root, "data")
 
@@ -80,23 +80,12 @@ mergedf.all.bplot <- data.frame(table(mergedf.all.bplot$source, mergedf.all.bplo
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
                                pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
-dataset_path    <- file.path(data_dir, "seamount_integrated_dataset.rda")
-
-species_prev_rate <- 3
 
 # =============================================================================
 # LOAD DATA
 # =============================================================================
 
 load(graph_data_path)   # -> network, lay, nodes.annot
-
-# -- eDNA abundance table -----------------------------------------------------
-load(dataset_path)   # -> sm
-
-edna_abundance <- t(sm$X)
-
-filtered_edna_abundance       <- get_sample_by_prevalence(edna_abundance, species_prev_rate)
-filtered_edna_presenceAbsence <- vegan::decostand(filtered_edna_abundance, method = "pa")
 
 # =============================================================================
 # MODULARITY DETECTION — fast greedy on undirected graph
@@ -345,7 +334,7 @@ four_panel <- (pA | pB) / (pC | pD) +
   theme(legend.position = "right")
 
 ggsave(
-  filename = file.path(out_dir, "FigureS1.pdf"),
+  filename = file.path(out_dir, "FigureS2.pdf"),
   plot     = four_panel,
   width    = 14, height = 10, units = "in",
   device   = cairo_pdf
@@ -420,7 +409,7 @@ bubble_combined <- (plot_degr | plot_betw) +
         legend.box      = "horizontal")
 
 ggsave(
-  filename = file.path(out_dir, "FigureS2.pdf"),
+  filename = file.path(out_dir, "FigureS3.pdf"),
   plot     = bubble_combined,
   width    = 14, height = 7, units = "in",
   device   = cairo_pdf

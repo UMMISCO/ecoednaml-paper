@@ -67,7 +67,14 @@ nodes.annot$IsIndSp <- ifelse(
 
 ## Only label indicator species — labelling all 261 nodes clutters the
 ## network past readability, so non-indicator vertices get a blank label.
-vertex_labels <- ifelse(nodes.annot$IsIndSp == "Yes", V(network)$label, "")
+## Match by name (not row position) since nodes.annot's row order isn't
+## guaranteed to match V(network)'s vertex order.
+indicator_names <- nodes.annot$name[nodes.annot$IsIndSp == "Yes"]
+is_indicator    <- V(network)$name %in% indicator_names
+vertex_labels   <- ifelse(is_indicator, V(network)$label, "")
+
+node_frame_color <- ifelse(is_indicator, "firebrick1", "grey15")
+node_frame_width <- ifelse(is_indicator, 2.5, 1.8)
 
 # =============================================================================
 # PANEL A — Network plot
@@ -77,7 +84,7 @@ panel_A <- cowplot::as_grob(function() {
 
   ## Right margin sized to fit the three legends placed at x = 1.2 in
   ## plot coords. At cex 1.1 the longest legend texts (Habitat titles
-  ## like 'Reef_outer_slope') need ~2 in of horizontal real estate;
+  ## like 'OuterSlope') need ~2 in of horizontal real estate;
   ## the previous mar = 10 lines (~1.5 in) let the legends spill past
   ## the panel-A box and overlap onto panel B. mar = 16 lines
   ## (~2.4 in) keeps them fully inside the right margin.
@@ -89,8 +96,8 @@ panel_A <- cowplot::as_grob(function() {
        vertex.color       = V(network)$color,
        vertex.shape       = V(network)$shape,
        vertex.size        = V(network)$size,
-       vertex.frame.color = V(network)$frame.color,
-       vertex.frame.width = V(network)$frame.width,
+       vertex.frame.color = node_frame_color,
+       vertex.frame.width = node_frame_width,
        edge.color         = E(network)$color,
        edge.width         = E(network)$edge_width,
        asp                = FALSE,
@@ -119,7 +126,7 @@ panel_A <- cowplot::as_grob(function() {
 
   legend(x = 1.2, y = 0.4,
          legend = c("Indicator species", "Other"),
-         col    = c("firebrick1", "black"),
+         col    = c("firebrick1", NA),
          pch    = 21, pt.bg = "gray80", pt.lwd = 2,
          pt.cex = 1.4, bty = "n", cex = 1.1,
          title  = "Node border", title.font = 2, title.cex = 1.2)

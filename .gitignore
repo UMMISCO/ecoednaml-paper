@@ -15,7 +15,7 @@ Rplots.pdf
 # Ignore all files in /data except README.md and presence_absence matrix
 data/*
 !data/README.md
-!data/smX_pres_abs_matrix.rda
+!data/smX_pres_abs_matrix_final.rda
 
 # Ignore all hidden files and directories at root
 /.*
@@ -39,4 +39,6 @@ rosm.cache/
 !.gitignore
 
 # Excude the script for data preprocessing
-/analyses/scripts/clean_input_csv.R
+analyses/scripts/clean_input_csv.R
+analyses/scripts/make_db_object.R
+analyses/scripts/make_db_object_clean.R
