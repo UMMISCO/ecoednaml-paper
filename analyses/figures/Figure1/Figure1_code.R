@@ -7,9 +7,14 @@
 #   Panel B — Heatmap of MOTU abundance across samples (ordered by clustering)
 #   Panel C — Species richness barplot per sample and habitat
 #   Panel D — PCoA of Jaccard beta-diversity with environmental fitting
-# Inputs:  data/smX_pres_abs_matrix.rda, 
-#          data/sm_taxonomy.csv
-#          data/sm_sample_info.csv
+# Inputs:  data/smX_pres_abs_matrix_final_V2.rda,
+#          data/sm_taxonomy_final_V2.csv
+#          data/sm_sample_info_final_V2.csv
+#          data/eDNA_Data_SEAMOUNTS_REEF3.0_merged_final_V2.csv (raw long-format
+#          abundance table, used to rebuild the full/unfiltered MOTU set for
+#          the Panel B heatmap's prev<3 vs prev>=3 facet split)
+#          data/highlighted_taxa_list.csv (MOTU_code assignment, matches
+#          make_db_object_clean.R)
 # Outputs: analyses/figures/Figure1/Figure1.pdf
 # =============================================================================
 
@@ -61,10 +66,10 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 # load eDNA dataset (outputs of make_db_object_clean.R)
-load(file.path(data_dir, "smX_pres_abs_matrix.rda"))   # -> smX_pres_abs_matrix (samples x MOTU, rownames/Station, with Habitat/Zone/hab_inoff)
-taxonomy_df <- read.csv(file.path(data_dir, "sm_taxonomy.csv"), stringsAsFactors = FALSE)
+load(file.path(data_dir, "smX_pres_abs_matrix_final_V2.rda"))   # -> smX_pres_abs_matrix (samples x MOTU, rownames/Station, with Habitat/Zone/hab_inoff)
+taxonomy_df <- read.csv(file.path(data_dir, "sm_taxonomy_final_V2.csv"), stringsAsFactors = FALSE)
 rownames(taxonomy_df) <- taxonomy_df$feature
-sample_info <- read.csv(file.path(data_dir, "sm_sample_info.csv"), stringsAsFactors = FALSE)
+sample_info <- read.csv(file.path(data_dir, "sm_sample_info_final_V2.csv"), stringsAsFactors = FALSE)
 
 # Station-level Habitat/Zone/hab_inoff, already derived once in make_db_object_clean.R
 station_meta <- smX_pres_abs_matrix[, c("Station", "Habitat", "Zone", "hab_inoff")]
@@ -158,14 +163,45 @@ dfaims_meta <- merge(sample_info[, c("Station", "Site", "MOTU_richness")], stati
 rownames(dfaims_meta) <- dfaims_meta$Station
 #Get taxo info for species
 dfaims_taxo <- taxonomy_df
-dfaims_melt <- as.data.frame(dfaims)
-dfaims_melt$feature <- rownames(dfaims)
+
+## smX_pres_abs_matrix_final_V2.rda is already filtered to the 318 MOTUs
+## retained at 3% prevalence, so building the heatmap directly from it
+## leaves nothing to show in the "prev<3" facet. Panel B is rebuilt instead
+## from the raw long-format abundance table (all ~967 MOTUs, pre-filter),
+## restricted to the same 217 analysis stations as the rest of the figure,
+## so the prev<3 vs prev>=3 split has real content on both sides.
+raw_long <- read.csv(file.path(data_dir, "eDNA_Data_SEAMOUNTS_REEF3.0_merged_final_V2.csv"),
+                     stringsAsFactors = FALSE)
+raw_long <- raw_long[!is.na(raw_long$best_taxonomic_assignment), ]
+
+## Same MOTU_code assignment logic as make_db_object_clean.R, so full-set
+## MOTU codes line up with the 318 already present in taxonomy_df.
+highlighted_tax_list <- read.csv(file.path(data_dir, "highlighted_taxa_list.csv"),
+                                 stringsAsFactors = FALSE)
+motu_codes_to_keep <- highlighted_tax_list$feature
+raw_long$MOTU_code <- ifelse(
+  raw_long$best_taxonomic_assignment %in% motu_codes_to_keep,
+  raw_long$best_taxonomic_assignment,
+  sub("_.*", "", raw_long$best_taxonomic_assignment)
+)
+
+full_wide <- dcast(raw_long, Station ~ MOTU_code, value.var = "mean_pcr_count_reads",
+                   fun.aggregate = sum, na.rm = TRUE)
+dfaims_full <- t(as.matrix(full_wide[, -1, drop = FALSE]))
+colnames(dfaims_full) <- full_wide$Station
+dfaims_full <- dfaims_full[, colnames(dfaims_full) %in% smX_pres_abs_matrix$Station, drop = FALSE]
+dfaims_full[is.na(dfaims_full)] <- 0
+dfaims_full <- (dfaims_full > 0) * 1
+
+dfaims_melt <- as.data.frame(dfaims_full)
+dfaims_melt$feature <- rownames(dfaims_full)
 dfaims_melt <- melt(dfaims_melt)
 ## Order MOTUs by TAXONOMY (class > order > family > genus > tax_name)
 ## so that taxonomically related MOTUs cluster together vertically within
 ## each facet (rare prev<3 row and retained prev>=3 row). NAs sort last
-## so MOTUs with unresolved taxonomy fall to the bottom of each facet.
-motu_all  <- rownames(dfaims)
+## so MOTUs with unresolved taxonomy fall to the bottom of each facet
+## (taxonomy_df only covers the 318 prevalence-retained MOTUs).
+motu_all  <- rownames(dfaims_full)
 taxo_for_motus <- dfaims_taxo[match(motu_all, rownames(dfaims_taxo)), ]
 taxo_motu_order <- motu_all[
   order(taxo_for_motus$class, taxo_for_motus$order, taxo_for_motus$family,
@@ -174,15 +210,15 @@ taxo_motu_order <- motu_all[
 ]
 
 ## Samples still ordered by hierarchical clustering on euclidean distance.
-dfaims_clust.samples <- hclust(dist(t(dfaims), method = "euclidean"), method = "ward.D")
+dfaims_clust.samples <- hclust(dist(t(dfaims_full), method = "euclidean"), method = "ward.D")
 
 dfaims_melt$feature <- factor(dfaims_melt$feature, levels = taxo_motu_order)
 dfaims_melt$variable <- factor(dfaims_melt$variable, levels = dfaims_clust.samples$labels[dfaims_clust.samples$order])
 dfaims_melt <- merge(dfaims_melt, dfaims_meta[,c("Habitat", "Zone", "Site")], by.x="variable", by.y=0, all.x=TRUE)
 dfaims_melt <- merge(dfaims_melt, dfaims_taxo[,c("order","family","genus", "tax_name")], by.x="feature", by.y=0, all.x=TRUE)
 
-# get samples with species at least 10% prevalence across samples
-dfaims_3_prev_species= get_sample_by_prevalence(t(dfaims), 3)
+# get samples with species at least 3% prevalence across samples
+dfaims_3_prev_species= get_sample_by_prevalence(t(dfaims_full), 3)
 
 
 # Add prevalence tag "prev<10" or "prev>=10" to each feature

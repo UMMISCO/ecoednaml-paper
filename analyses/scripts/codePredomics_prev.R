@@ -4,7 +4,7 @@
 # Date created: 2025-12-10
 # Purpose: Run Predomics (bininter/terinter) pairwise habitat comparisons on
 #          eDNA presence/absence data filtered by prevalence.
-# Inputs:  data/smX_pres_abs_matrix.rda
+# Inputs:  data/smX_pres_abs_matrix_final.rda
 # Outputs: analyses/analysis_outputs/<algorithm>_output_data/
 #            <algorithm>_Predomics_all_analyses_overall_data_<group>_prev_<N>.Rda
 # =============================================================================
@@ -70,13 +70,16 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
-load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
+load(file.path(data_dir, "smX_pres_abs_matrix_final_V2.rda"))
 rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Station
 base_meta_cols <- c("Station", "Habitat", "Zone", "hab_inoff")
 edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% base_meta_cols])
 
-# get samples filtered at the chosen prevalence rate
-filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, prevalence_rate)
+# smX_pres_abs_matrix_final.rda is already filtered at 3% prevalence upstream
+# (make_db_object_clean.R), so no further filtering is applied here;
+# prevalence_rate is only used to label the output file name below.
+# filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, prevalence_rate)
+filtered_edna_presenceAbsence <- edna_presenceAbsence
 
 acc <- data.frame(filtered_edna_presenceAbsence)
 acc$Station <- rownames(acc)

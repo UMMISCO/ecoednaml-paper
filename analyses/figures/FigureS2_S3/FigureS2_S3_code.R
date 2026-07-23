@@ -184,7 +184,7 @@ nodes_tree.df <- nodes_tree.df[, c("name", "Habitat", "Zone", "Module")]
 
 colnames(nodes_tree.df)[colnames(nodes_tree.df)=="name"] <- "feature"
 
-taxonomy.df <- read.csv(file.path(data_dir, "sm_taxonomy.csv"), stringsAsFactors = FALSE)
+taxonomy.df <- read.csv(file.path(data_dir, "sm_taxonomy_final_V2.csv"), stringsAsFactors = FALSE)
 taxonomy.df$feature <- gsub(" ", ".", taxonomy.df$feature)
 # merge with taxonomy
 nodes_tree_taxo.df <- merge(nodes_tree.df, taxonomy.df, by = "feature", all.x = TRUE)

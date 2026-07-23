@@ -3,8 +3,8 @@
 # Author: Estephe Kana
 # Date created: 2026-07-01
 # Purpose: Build the integrated eDNA dataset object (sm) from the raw data
-# Inputs:  data/eDNA_Data_SEAMOUNTS_REEF3.0_merged_final.csv
-#          data/eDNA_SEAMOUNTS_REEF3.0_merged_Environmental_Variables_final.csv
+# Inputs:  data/eDNA_Data_SEAMOUNTS_REEF3.0_merged_final_V2.csv
+#          data/eDNA_SEAMOUNTS_REEF3.0_merged_Environmental_Variables_final_V2.csv
 #          data/highlighted_taxa_list.csv (built by extract_highlighted_taxa.R)
 #          NCBI Taxonomy, queried live via taxize (no local reference file)
 # Outputs: data/seamount_integrated_dataset_final.rda   (sm object, sm$X is presence/absence)
@@ -80,7 +80,7 @@ db.wide <- dcast(dba,
 
 db.wide <- as.data.frame(db.wide)
 # order by Station
-db.wide <- db.wide[order(db.wide$Station), ]
+# db.wide <- db.wide[order(db.wide$Station), ]
 
 # Keep species at 3% prevalence, matching scalenet_network_inference.R /
 # codePredomics_prev.R / save_table_data.R
@@ -173,7 +173,7 @@ sample.info <- merge(sample.info, richness, by.x = "Station", by.y = "sample")
 # Output 1: sm object (.rda)
 # -----------------------------------------------------------------------------
 sm <- list(db_long = dba, sample_info = sample.info, X = X, taxonomy = reftax.list)
-out_rda <- file.path(data_dir, "seamount_integrated_dataset_clean.rda")
+out_rda <- file.path(data_dir, "seamount_integrated_dataset_clean_V2.rda")
 save(sm, file = out_rda)
 message("Saved: seamount_integrated_dataset_final.rda (",
         nrow(sm$X), " species x ", ncol(sm$X), " samples, presence/absence)")
@@ -205,7 +205,7 @@ motu_cols <- setdiff(colnames(smX_pres_abs_matrix),
                      c("Station", "Habitat", "Zone", "hab_inoff"))
 smX_pres_abs_matrix <- smX_pres_abs_matrix[, c("Station", "Habitat", "Zone", "hab_inoff", motu_cols)]
 
-out_rda_X <- file.path(data_dir, "smX_pres_abs_matrix_final.rda")
+out_rda_X <- file.path(data_dir, "smX_pres_abs_matrix_final_V2.rda")
 save(smX_pres_abs_matrix, file = out_rda_X)
 message("Saved: smX_pres_abs_matrix_final.rda (",
         nrow(smX_pres_abs_matrix), " samples x ", length(motu_cols), " MOTUs)")
@@ -218,14 +218,14 @@ taxo_out <- sm$taxonomy
 taxo_out$feature <- rownames(taxo_out)
 taxo_out <- taxo_out[, c("feature", setdiff(colnames(taxo_out), "feature"))]
 
-out_csv_taxo <- file.path(data_dir, "sm_taxonomy_final.csv")
+out_csv_taxo <- file.path(data_dir, "sm_taxonomy_final_V2.csv")
 write.csv(taxo_out, out_csv_taxo, row.names = FALSE)
 message("Saved: sm_taxonomy.csv (", nrow(taxo_out), " MOTUs)")
 
 # -----------------------------------------------------------------------------
 # Output 4: sm$sample_info as CSV, so downstream figure scripts (e.g. Figure1)
 # -----------------------------------------------------------------------------
-out_csv_sample_info <- file.path(data_dir, "sm_sample_info_final.csv")
+out_csv_sample_info <- file.path(data_dir, "sm_sample_info_final_V2.csv")
 write.csv(sample.info, out_csv_sample_info, row.names = FALSE)
 message("Saved: sm_sample_info_final.csv (", nrow(sample.info), " samples)")
 

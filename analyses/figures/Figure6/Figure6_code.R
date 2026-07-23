@@ -173,7 +173,7 @@ nodes_tree.df <- nodes_tree.df[, c("name", "Habitat", "Zone", "Module")]
 
 colnames(nodes_tree.df)[colnames(nodes_tree.df)=="name"] <- "feature"
 
-taxonomy.df <- read.csv(file.path(data_dir, "sm_taxonomy.csv"), stringsAsFactors = FALSE)
+taxonomy.df <- read.csv(file.path(data_dir, "sm_taxonomy_final_V2.csv"), stringsAsFactors = FALSE)
 taxonomy.df$feature <- gsub(" ", ".", taxonomy.df$feature)
 
 # merge with taxonomy
@@ -206,13 +206,14 @@ nodes_tree_taxo.df$IsIndSp[is.na(nodes_tree_taxo.df$IsIndSp)]                   
 # ---------------------------------------------------------------------------
 
 tree_df <- nodes_tree_taxo.df %>%
-  dplyr::select(feature, class, order, family, genus, Module, Zone, Habitat,
+  dplyr::select(feature, MOTU_code, class, order, family, genus, Module, Zone, Habitat,
                 betw_cent, degr_cent, mean_featureImportance, IsIndSp) %>%
   dplyr::mutate(
-    class  = ifelse(is.na(class),  "Unk_class",  class),
-    order  = ifelse(is.na(order),  paste0(class,  "_unk_order"),  order),
-    family = ifelse(is.na(family), paste0(order,  "_unk_family"), family),
-    genus  = ifelse(is.na(genus),  paste0(family, "_unk_genus"),  genus)
+    class      = ifelse(is.na(class),  "Unk_class",  class),
+    order      = ifelse(is.na(order),  paste0(class,  "_unk_order"),  order),
+    family     = ifelse(is.na(family), paste0(order,  "_unk_family"), family),
+    genus      = ifelse(is.na(genus),  paste0(family, "_unk_genus"),  genus),
+    MOTU_code  = ifelse(is.na(MOTU_code), feature, MOTU_code)
   )
 
 edges_df <- bind_rows(
@@ -285,7 +286,7 @@ habitat_pal <- c(
 
 p_base <- suppressWarnings(
   ggtree(phylo_obj, layout = "circular", linewidth = 0.25, color = "grey50")
-) %<+% (tree_df %>% dplyr::select(feature, IsIndSp) %>% dplyr::rename(label = feature))
+) %<+% (tree_df %>% dplyr::select(feature, IsIndSp, MOTU_code) %>% dplyr::rename(label = feature))
 
 tree_data    <- p_base$data
 tree_radius  <- max(tree_data$x, na.rm = TRUE)
@@ -314,6 +315,7 @@ genus_nodes  <- .rank_nodes(unique(tree_df$genus),  tree_data)
 p3 <- p_base +
   geom_tiplab(
     aes(
+      label    = MOTU_code,
       fontface = ifelse(IsIndSp, "bold.italic", "italic"),
       color    = IsIndSp  # map to logical directly
     ),

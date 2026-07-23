@@ -70,7 +70,7 @@ message("Original : ", ncol(env_raw),   " columns, ", nrow(env_raw),   " rows")
 message("Cleaned  : ", ncol(env_clean), " columns, ", nrow(env_clean), " rows")
 message("Dropped  : ", paste(env_dropped, collapse = ", "))
 
-out_env <- file.path(data_dir, "eDNA_SEAMOUNTS_REEF3.0_merged_Environmental_Variables_final.csv")
+out_env <- file.path(data_dir, "eDNA_SEAMOUNTS_REEF3.0_merged_Environmental_Variables_final_V2.csv")
 write_csv(env_clean, out_env)
 message("Saved    : ", out_env)
 
@@ -116,7 +116,6 @@ edna_annot <- unique(edna_clean[, c("sequence", "new_scientific_name_ncbi", "Spe
 
 valid <- !is.na(edna_annot$new_scientific_name_ncbi)
 edna_annot <- edna_annot[valid,]
-edna_annot$best_taxonomic_assignment <- NA_character_
 edna_annot$best_taxonomic_assignment <- paste0(
   "MOTU", sprintf("%03d", 1:nrow(edna_annot)), "_",
   edna_annot$new_scientific_name_ncbi
@@ -136,6 +135,6 @@ message("Cleaned  : ", ncol(edna_clean), " columns (incl. best_taxonomic_assignm
         nrow(edna_clean), " rows")
 message("Dropped  : ", paste(edna_dropped, collapse = ", "))
 
-out_edna <- file.path(data_dir, "eDNA_Data_SEAMOUNTS_REEF3.0_merged_final.csv")
+out_edna <- file.path(data_dir, "eDNA_Data_SEAMOUNTS_REEF3.0_merged_final_V2.csv")
 write_csv(edna_clean, out_edna)
 message("Saved    : ", out_edna)
