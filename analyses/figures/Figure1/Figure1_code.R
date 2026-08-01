@@ -4,17 +4,15 @@
 # Date created: 2025-12-10
 # Purpose: Build a 4-panel publication figure:
 #   Panel A — Map of sampling sites (New Caledonia, coloured by Habitat/Zone)
-#   Panel B — Heatmap of MOTU abundance across samples (ordered by clustering)
-#   Panel C — Species richness barplot per sample and habitat
-#   Panel D — PCoA of Jaccard beta-diversity with environmental fitting
-# Inputs:  data/smX_pres_abs_matrix_final_V2.rda,
-#          data/sm_taxonomy_final_V2.csv
-#          data/sm_sample_info_final_V2.csv
-#          data/eDNA_Data_SEAMOUNTS_REEF3.0_merged_final_V2.csv (raw long-format
+#   Panel B — PCoA of Jaccard beta-diversity with environmental fitting
+#   Panel C — Heatmap of MOTU presence/absence across samples (ordered by clustering)
+#   Panel D — Species richness barplot per sample and habitat
+# Inputs:  data/smX_pres_abs_matrix.rda,
+#          data/Taxonomy_Data.csv
+#          data/Sample_Data.csv
+#          data/eDNA_Data.csv (raw long-format
 #          abundance table, used to rebuild the full/unfiltered MOTU set for
 #          the Panel B heatmap's prev<3 vs prev>=3 facet split)
-#          data/highlighted_taxa_list.csv (MOTU_code assignment, matches
-#          make_db_object_clean.R)
 # Outputs: analyses/figures/Figure1/Figure1.pdf
 # =============================================================================
 
@@ -49,6 +47,8 @@ library(viridis)
 library(dplyr)
 library(ggh4x)
 
+# Fixes point jitter (Panel A) and envfit permutation p-values (Panel B)
+set.seed(42)
 
 ## Mapview and heatmap of eDNA data
 
@@ -66,16 +66,16 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 # load eDNA dataset (outputs of make_db_object_clean.R)
-load(file.path(data_dir, "smX_pres_abs_matrix_final_V2.rda"))   # -> smX_pres_abs_matrix (samples x MOTU, rownames/Station, with Habitat/Zone/hab_inoff)
-taxonomy_df <- read.csv(file.path(data_dir, "sm_taxonomy_final_V2.csv"), stringsAsFactors = FALSE)
+load(file.path(data_dir, "smX_pres_abs_matrix.rda"))   # -> smX_pres_abs_matrix (samples x MOTU, rownames/Station, with Habitat/Zone/hab_inoff)
+taxonomy_df <- read.csv(file.path(data_dir, "Taxonomy_Data.csv"), stringsAsFactors = FALSE)
 rownames(taxonomy_df) <- taxonomy_df$feature
-sample_info <- read.csv(file.path(data_dir, "sm_sample_info_final_V2.csv"), stringsAsFactors = FALSE)
+sample_info <- read.csv(file.path(data_dir, "Sample_Data.csv"), stringsAsFactors = FALSE)
 
 # Station-level Habitat/Zone/hab_inoff, already derived once in make_db_object_clean.R
 station_meta <- smX_pres_abs_matrix[, c("Station", "Habitat", "Zone", "hab_inoff")]
 
 # get environmental data (per-sample metadata, enriched with Zone/hab_inoff by Station)
-env_eDNA_df <- merge(sample_info, station_meta[, c("Station", "Zone", "hab_inoff")], by = "Station")
+env_eDNA_df <- merge(sample_info, station_meta[, c("Station", "Zone", "hab_inoff")], by = "Station", sort = FALSE)
 env_eDNA_sf <- st_as_sf(env_eDNA_df, coords = c('Longitude', 'Latitude'), crs=4326)
 
 # Use the bounding box of the sample points to set the map extent
@@ -153,58 +153,60 @@ p1 <- ggplot() +
     legend.box = "vertical"
   )
 
-# Heatmap of co-abundance patterns across samples
+# Heatmap of MOTU presence/absence patterns across samples
 
 #Get the raw data for the heatmap (MOTU x Station, presence/absence)
 motu_cols <- setdiff(colnames(smX_pres_abs_matrix), c("Station", "Habitat", "Zone", "hab_inoff"))
 dfaims <- t(as.matrix(smX_pres_abs_matrix[, motu_cols]))
 #Get the metadata for the heatmap
-dfaims_meta <- merge(sample_info[, c("Station", "Site", "MOTU_richness")], station_meta, by = "Station")
+dfaims_meta <- merge(sample_info[, c("Station", "Site", "MOTU_richness")], station_meta, by = "Station", sort = FALSE)
 rownames(dfaims_meta) <- dfaims_meta$Station
-#Get taxo info for species
-dfaims_taxo <- taxonomy_df
 
-## smX_pres_abs_matrix_final_V2.rda is already filtered to the 318 MOTUs
-## retained at 3% prevalence, so building the heatmap directly from it
-## leaves nothing to show in the "prev<3" facet. Panel B is rebuilt instead
-## from the raw long-format abundance table (all ~967 MOTUs, pre-filter),
-## restricted to the same 217 analysis stations as the rest of the figure,
-## so the prev<3 vs prev>=3 split has real content on both sides.
-raw_long <- read.csv(file.path(data_dir, "eDNA_Data_SEAMOUNTS_REEF3.0_merged_final_V2.csv"),
+## smX_pres_abs_matrix.rda is already filtered to the 318 MOTUs
+raw_long <- read.csv(file.path(data_dir, "eDNA_Data.csv"),
                      stringsAsFactors = FALSE)
 raw_long <- raw_long[!is.na(raw_long$best_taxonomic_assignment), ]
 
 ## Same MOTU_code assignment logic as make_db_object_clean.R, so full-set
-## MOTU codes line up with the 318 already present in taxonomy_df.
-highlighted_tax_list <- read.csv(file.path(data_dir, "highlighted_taxa_list.csv"),
-                                 stringsAsFactors = FALSE)
-motu_codes_to_keep <- highlighted_tax_list$feature
+## MOTU codes line up with the 318 already present in smX_pres_abs_matrix.
+## The MOTUs "kept" under their full taxon-name suffix are recovered directly
+## from smX_pres_abs_matrix's own column names (rather than highlighted_taxa_list.csv,
+## which is not distributed with the repo).
+motu_codes_to_keep <- motu_cols[grepl("^MOTU[0-9]+_", motu_cols)]
 raw_long$MOTU_code <- ifelse(
   raw_long$best_taxonomic_assignment %in% motu_codes_to_keep,
   raw_long$best_taxonomic_assignment,
   sub("_.*", "", raw_long$best_taxonomic_assignment)
 )
+raw_long <- raw_long[order(raw_long$Spygen), ]
 
 full_wide <- dcast(raw_long, Station ~ MOTU_code, value.var = "mean_pcr_count_reads",
                    fun.aggregate = sum, na.rm = TRUE)
+# order rows to follow raw_long's station order
+full_wide <- full_wide[match(unique(raw_long$Station), full_wide$Station), ]
 dfaims_full <- t(as.matrix(full_wide[, -1, drop = FALSE]))
 colnames(dfaims_full) <- full_wide$Station
 dfaims_full <- dfaims_full[, colnames(dfaims_full) %in% smX_pres_abs_matrix$Station, drop = FALSE]
 dfaims_full[is.na(dfaims_full)] <- 0
 dfaims_full <- (dfaims_full > 0) * 1
 
+## Sample_Data.csv's MOTU_richness only counts the 318 prevalence-filtered
+## MOTUs; recompute from the full 967-MOTU dfaims_full for Panel B/D instead.
+full_richness <- setNames(colSums(dfaims_full), colnames(dfaims_full))
+env_eDNA_df$MOTU_richness <- full_richness[env_eDNA_df$Station]
+dfaims_meta$MOTU_richness <- full_richness[dfaims_meta$Station]
+
 dfaims_melt <- as.data.frame(dfaims_full)
+
 dfaims_melt$feature <- rownames(dfaims_full)
-dfaims_melt <- melt(dfaims_melt)
-## Order MOTUs by TAXONOMY (class > order > family > genus > tax_name)
-## so that taxonomically related MOTUs cluster together vertically within
-## each facet (rare prev<3 row and retained prev>=3 row). NAs sort last
-## so MOTUs with unresolved taxonomy fall to the bottom of each facet
-## (taxonomy_df only covers the 318 prevalence-retained MOTUs).
+dfaims_melt <- reshape2::melt(dfaims_melt)
+## Order MOTUs by taxonomy (kingdom>phylum>class>order>family>genus>tax_name)
+## so related MOTUs cluster together; unresolved taxa (NA) sort last.
 motu_all  <- rownames(dfaims_full)
-taxo_for_motus <- dfaims_taxo[match(motu_all, rownames(dfaims_taxo)), ]
+taxo_for_motus <- taxonomy_df[match(motu_all, rownames(taxonomy_df)), ]
 taxo_motu_order <- motu_all[
-  order(taxo_for_motus$class, taxo_for_motus$order, taxo_for_motus$family,
+  order(taxo_for_motus$kingdom, taxo_for_motus$phylum, taxo_for_motus$class,
+        taxo_for_motus$order, taxo_for_motus$family,
         taxo_for_motus$genus, taxo_for_motus$tax_name,
         na.last = TRUE)
 ]
@@ -215,9 +217,9 @@ dfaims_clust.samples <- hclust(dist(t(dfaims_full), method = "euclidean"), metho
 dfaims_melt$feature <- factor(dfaims_melt$feature, levels = taxo_motu_order)
 dfaims_melt$variable <- factor(dfaims_melt$variable, levels = dfaims_clust.samples$labels[dfaims_clust.samples$order])
 dfaims_melt <- merge(dfaims_melt, dfaims_meta[,c("Habitat", "Zone", "Site")], by.x="variable", by.y=0, all.x=TRUE)
-dfaims_melt <- merge(dfaims_melt, dfaims_taxo[,c("order","family","genus", "tax_name")], by.x="feature", by.y=0, all.x=TRUE)
+dfaims_melt <- merge(dfaims_melt, taxonomy_df[,c("order","family","genus", "tax_name")], by.x="feature", by.y=0, all.x=TRUE)
 
-# get samples with species at least 3% prevalence across samples
+# get the MOTUs at ≥3% prevalence across samples (used to tag features below)
 dfaims_3_prev_species= get_sample_by_prevalence(t(dfaims_full), 3)
 
 
@@ -235,6 +237,7 @@ dfaims_melt$Zone= factor(dfaims_melt$Zone, levels= c("Shallow","Middle", "Deep")
 
 
 # Get the order of samples based on Site variable in dfaims_melt
+# Panel C (heatmap) and Panel D (barplot) both follow this Site-based order.
 site_order <- dfaims_melt %>%
   select(variable, Site) %>%
   distinct() %>%
@@ -245,9 +248,7 @@ site_order <- dfaims_melt %>%
 dfaims_melt$variable <- factor(dfaims_melt$variable, levels = site_order)
 
 
-## Convert to binary presence/absence: any non-zero read count = presence.
-## Consistent with the rest of the pipeline (Jaccard, Predomics, ScaleNet)
-## which all operate on presence/absence rather than raw abundance.
+## Binarize: any non-zero read count = presence, matching the rest of the pipeline.
 dfaims_melt$presence <- factor(
   ifelse(is.na(dfaims_melt$value) | dfaims_melt$value == 0, "Absent", "Present"),
   levels = c("Absent", "Present"))
@@ -304,9 +305,7 @@ median_rich_by_habitat <- dfaims_meta %>%
 
 p3 <- ggplot(dfaims_meta, aes(x = Station, y = MOTU_richness, fill = Habitat)) +
   geom_bar(stat = "identity") +
-  ## Dashed horizontal line per facet at the median richness for that habitat,
-  ## drawn in the habitat colour. show.legend = FALSE keeps the existing
-  ## fill legend untouched (no separate colour legend).
+  ## Per-facet median richness line; show.legend=FALSE avoids a duplicate colour legend.
   geom_hline(
     data         = median_rich_by_habitat,
     aes(yintercept = median_rich, colour = Habitat),
@@ -321,10 +320,9 @@ p3 <- ggplot(dfaims_meta, aes(x = Station, y = MOTU_richness, fill = Habitat)) +
   facet_nested(. ~ Habitat, scales = "free_x", space = "fixed") +
   theme_bw() +
   scale_fill_manual(values = habitat_palette) +
-  ## p3's own legend is suppressed: a manual one-row legend strip is built
-  ## below (p3_legend_strip) because ggplot's guide_legend(nrow = 1) was
-  ## auto-wrapping to two rows regardless of width and shrink-to-fit
-  ## attempts.
+  ## p3's own legend is suppressed (guide_legend(nrow=1) kept wrapping to two
+  ## rows); the patchwork-level legend collection in the pdf() block below
+  ## handles it instead.
   theme(
     axis.text.x      = element_blank(),
     axis.ticks.x     = element_blank(),
@@ -334,18 +332,13 @@ p3 <- ggplot(dfaims_meta, aes(x = Station, y = MOTU_richness, fill = Habitat)) +
     legend.position  = "none"
   )
 
-## No separate habitat legend is built: panel D already has per-habitat
-## facets whose strip labels name the habitat, and the bar colour inside
-## each facet maps unambiguously to that habitat -- the colour-to-name
-## mapping is self-evident from the facets alone.
-
 
 ################
 # PCoA analyses
 ################
 
 
-df.all <- dfaims
+df.all <- dfaims_full
 
 ## Compute beta-diversity with jaccard  method (pairwise sample distance from presence/absence data)
 X.jac <- vegdist(x = t(df.all), method = "jaccard", binary = TRUE)
@@ -446,22 +439,14 @@ if (!dir.exists(path)) {
 
 # save the combined figure to a pdf
 pdf(file=paste0(path, "Figure1.pdf"), h=20, w=22)
-## p2 (heatmap) is WRAPPED so its colorbar stays inside panel C.
-## p3 (barplot) is left unwrapped so its habitat legend gets collected
-## up to the patchwork level via guides = 'collect'. At that level the
-## legend has access to the full 22-inch figure width and can finally
-## honour nrow = 1.
-## p1 (map) and p4 (PCoA) are also wrapped: their legends stay put
-## (map has none; PCoA's Zone legend stays on the right of panel B).
+## p2 is wrapped so its legend stays inside panel C; p3 stays unwrapped so
+## its habitat legend collects to the full-width patchwork level (nrow=1).
+## p1/p4 wrapped too, keeping their own legends in place.
 wrap_elements(full = p1) +
   wrap_elements(full = p4) +
   wrap_elements(full = p2) +
   p3 +
-  ## heights argument weights the 9 layout rows so panel C (rows 4-7) gets
-  ## ~60% more vertical space per row than A/B/D's rows. With PDF h = 20
-  ## and total weight 3*1 + 4*1.6 + 2*1 = 11.4, panel C now renders at
-  ## ~11.2 in (was ~8.9 in before), giving the heatmap a much more
-  ## comfortable vertical footprint. A/B/D shrink slightly to make room.
+  ## heights gives panel C (rows 4-7) ~60% more vertical space per row than A/B/D.
   plot_layout(design = layout, heights = c(rep(1, 3), rep(1.6, 4), rep(1, 2))) +
   plot_annotation(tag_levels = "A") &
   theme(plot.tag = element_text(face = "bold", size = 24))

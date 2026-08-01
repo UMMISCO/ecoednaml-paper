@@ -1,12 +1,17 @@
 # =============================================================================
 # Script name: Figure6_code.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
+# Date created: 2026-05-12
 # Purpose: Build an iTOL-style circular phylogenetic tree of marine fish
 #   species from the network inferred by ScaleNet, annotated with:
 #     - Concentric rings for Zone, and Habitat associations
 #     - Bar plots for mean feature importance, betweenness centrality, and degree centrality
 #     - Indicator taxa highlighted in red
-
+# Inputs:  analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda (latest)
+#          data/Taxonomy_Data.csv
+# Outputs: analyses/figures/Figure6/Figure6.pdf
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -143,9 +148,6 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in% paste0(cols_to_rename
 # Step 2 — recode DeepSlope AFTER assigned_class column exists under its correct name
 sp.chisq_habitat$assigned_class[sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
 
-# Step 3 — also recode any DeepSlope column name suffixes (padj_PH_, residual_)
-colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150", colnames(sp.chisq_habitat))
-
 nodes_tree.df <- modularity.df[, c("name", "fast_greedy")] %>%
   # Join habitat-level chi-sq assignment
   dplyr::left_join(
@@ -173,7 +175,7 @@ nodes_tree.df <- nodes_tree.df[, c("name", "Habitat", "Zone", "Module")]
 
 colnames(nodes_tree.df)[colnames(nodes_tree.df)=="name"] <- "feature"
 
-taxonomy.df <- read.csv(file.path(data_dir, "sm_taxonomy_final_V2.csv"), stringsAsFactors = FALSE)
+taxonomy.df <- read.csv(file.path(data_dir, "Taxonomy_Data.csv"), stringsAsFactors = FALSE)
 taxonomy.df$feature <- gsub(" ", ".", taxonomy.df$feature)
 
 # merge with taxonomy
@@ -206,10 +208,12 @@ nodes_tree_taxo.df$IsIndSp[is.na(nodes_tree_taxo.df$IsIndSp)]                   
 # ---------------------------------------------------------------------------
 
 tree_df <- nodes_tree_taxo.df %>%
-  dplyr::select(feature, MOTU_code, class, order, family, genus, Module, Zone, Habitat,
+  dplyr::select(feature, MOTU_code, kingdom, phylum, class, order, family, genus, Module, Zone, Habitat,
                 betw_cent, degr_cent, mean_featureImportance, IsIndSp) %>%
   dplyr::mutate(
-    class      = ifelse(is.na(class),  "Unk_class",  class),
+    kingdom    = ifelse(is.na(kingdom), "Unk_kingdom",              kingdom),
+    phylum     = ifelse(is.na(phylum),  paste0(kingdom, "_unk_phylum"), phylum),
+    class      = ifelse(is.na(class),   paste0(phylum,  "_unk_class"),  class),
     order      = ifelse(is.na(order),  paste0(class,  "_unk_order"),  order),
     family     = ifelse(is.na(family), paste0(order,  "_unk_family"), family),
     genus      = ifelse(is.na(genus),  paste0(family, "_unk_genus"),  genus),
@@ -217,7 +221,9 @@ tree_df <- nodes_tree_taxo.df %>%
   )
 
 edges_df <- bind_rows(
-  tree_df %>% distinct(class)          %>% transmute(parent = "root", child = class),
+  tree_df %>% distinct(kingdom)         %>% transmute(parent = "root",   child = kingdom),
+  tree_df %>% distinct(kingdom, phylum) %>% transmute(parent = kingdom,  child = phylum),
+  tree_df %>% distinct(phylum, class)   %>% transmute(parent = phylum,   child = class),
   tree_df %>% distinct(class, order)   %>% transmute(parent = class,  child = order),
   tree_df %>% distinct(order, family)  %>% transmute(parent = order,  child = family),
   tree_df %>% distinct(family, genus)  %>% transmute(parent = family, child = genus),

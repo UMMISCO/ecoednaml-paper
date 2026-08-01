@@ -1,11 +1,16 @@
 # =============================================================================
 # Script name: Figure5_code.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
+# Date created: 2026-05-12
 # Purpose: Build a 4-panel publication figure:
 #   Panel A — Co-occurrence network coloured by habitat
 #   Panel B — Same network coloured by fast-greedy module membership
-#   Panel C — Alluvial diagram: Habitat → Module membership
+#   Panel C — Alluvial diagram: Zone → Module → Habitat
 #   Panel D — Module enrichment heatmap (Zone + Habitat, enrichment only)
+# Inputs:  analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda (latest)
+#          analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+# Outputs: analyses/figures/Figure5/Figure5.pdf
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -184,6 +189,7 @@ run_gsea <- function(posthoc_df, modules_list, padj_cols, resid_cols) {
     padj_vec <- padj_vec[names(padj_vec) %in% species_list]
     res_vec  <- res_vec[names(res_vec)  %in% species_list]
     
+    set.seed(123)
     gsea_res <- piano::runGSA(
       geneLevelStats = padj_vec,
       directions     = res_vec,
@@ -231,9 +237,6 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in% paste0(cols_to_rename
 # Step 2 — recode DeepSlope AFTER assigned_class column exists under its correct name
 sp.chisq_habitat$assigned_class[sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
 
-# Step 3 — also recode any DeepSlope column name suffixes (padj_PH_, residual_)
-colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150", colnames(sp.chisq_habitat))
-
 message("Running GSEA: Zone ...")
 gsea_zone <- run_gsea(sp.chisq_zone, fast_greedy_modules,
                       zone_padj_cols, zone_resid_cols)
@@ -270,6 +273,10 @@ significant_clusters.zone <- sort(unique(gsea_zone$cluster[!is.na(gsea_zone$padj
 significant_clusters.habitat <- sort(unique(gsea_habitat$cluster[!is.na(gsea_habitat$padj_up) &
                                                                    gsea_habitat$padj_up < 0.05 &
                                                                    gsea_habitat$n_up > 1]))
+
+message(sprintf("Number of fast_greedy modules: %d", length(fast_greedy_modules)))
+message(sprintf("Number of modules enriched by GSEA (padj_up<0.05, n_up>1, any Zone/Habitat): %d",
+                length(all_significant_clusters)))
 
 # =============================================================================
 # PANEL A — Network coloured by habitat
@@ -438,15 +445,10 @@ panel_B <- cowplot::as_grob(function() {
 
 zone_order <- c("Shallow", "Middle", "Deep", "NS.zone")
 
-module_order <- c("Cluster_08", "Cluster_01", "Cluster_02", "Cluster_03",
-                  "Cluster_04", "Cluster_05", "Cluster_09", "Cluster_06",
-                  "Cluster_10", "Cluster_12", "Cluster_07","Cluster_11", 
-                  "Cluster_13")
-
 habitat_order <- c("Bay", "Lagoon", "BackReef", "OuterSlope",
                    "Seamount50", "DeepSlope150", "Seamount250", "Seamount500", "NS.habitat")
 
-alluvial_df <- modularity.df[, c("name", "fast_greedy")] %>%
+alluvial_counts <- modularity.df[, c("name", "fast_greedy")] %>%
   dplyr::left_join(
     sp.chisq_habitat %>% dplyr::select(feature, assigned_habitat = assigned_class),
     by = c("name" = "feature")
@@ -466,7 +468,21 @@ alluvial_df <- modularity.df[, c("name", "fast_greedy")] %>%
     ),
     Module = paste0("Cluster_", sprintf("%02d", fast_greedy))
   ) %>%
-  dplyr::count(Zone, Module, Habitat, name = "n_species") %>%
+  dplyr::count(Zone, Module, Habitat, name = "n_species")
+
+# Order modules by dominant Habitat (most species), following habitat_order.
+# Panel D reuses this same module_order, so both panels stay aligned.
+module_order <- alluvial_counts %>%
+  dplyr::group_by(Module, Habitat) %>%
+  dplyr::summarise(n = sum(n_species), .groups = "drop") %>%
+  dplyr::group_by(Module) %>%
+  dplyr::slice_max(n, n = 1, with_ties = FALSE) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(habitat_rank = match(Habitat, habitat_order)) %>%
+  dplyr::arrange(habitat_rank, Module) %>%
+  dplyr::pull(Module)
+
+alluvial_df <- alluvial_counts %>%
   dplyr::mutate(
     Zone    = factor(Zone,    levels = zone_order),
     Module  = factor(Module,  levels = module_order),
@@ -622,9 +638,7 @@ middle_row <- gridExtra::arrangeGrob(
   widths = c(1.6, 1)
 )
 
-## Canvas 22x18 with heights c(1.0, 1.2): top and middle rows are
-## near-equal in height, so panel D's heatmap (13 short rows) is
-## proportioned naturally rather than being stretched vertically.
+## heights=c(1.0,1.2) keeps top/middle rows near-equal so panel D's heatmap isn't stretched.
 pdf(out_pdf, width = 22, height = 18)
 
 gridExtra::grid.arrange(

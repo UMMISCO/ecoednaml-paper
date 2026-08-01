@@ -1,9 +1,14 @@
 # =============================================================================
 # Script name: Figure4_code.R
 # Author: Estephe Kana & Edi Prifti & Eugeni Belda
+# Date created: 2026-05-12
 # Purpose: Combine network plot (Panel A) and centrality metrics (Panel B)
 #          into a single merged PDF figure
-#          >> Centrality metrics restricted to Degree and Betweenness 
+#          >> Centrality metrics restricted to Degree and Betweenness
+# Inputs:  analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda (latest)
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+# Outputs: analyses/figures/Figure4/Figure4.pdf
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -65,13 +70,14 @@ nodes.annot$IsIndSp <- ifelse(
   "Yes", "No"
 )
 
-## Only label indicator species — labelling all 261 nodes clutters the
-## network past readability, so non-indicator vertices get a blank label.
-## Match by name (not row position) since nodes.annot's row order isn't
-## guaranteed to match V(network)'s vertex order.
+## Only label indicator species (all 261 nodes would be unreadable); match by
+## name since nodes.annot's row order isn't guaranteed to match V(network)'s.
 indicator_names <- nodes.annot$name[nodes.annot$IsIndSp == "Yes"]
 is_indicator    <- V(network)$name %in% indicator_names
-vertex_labels   <- ifelse(is_indicator, V(network)$label, "")
+## Per Eugeni Belda's review: labels shown as 'MOTU...' to match manuscript terminology.
+indicator_label <- ifelse(is_indicator,
+                          sub("^OTU", "MOTU", V(network)$label),
+                          NA)
 
 node_frame_color <- ifelse(is_indicator, "firebrick1", "grey15")
 node_frame_width <- ifelse(is_indicator, 2.5, 1.8)
@@ -82,17 +88,12 @@ node_frame_width <- ifelse(is_indicator, 2.5, 1.8)
 
 panel_A <- cowplot::as_grob(function() {
 
-  ## Right margin sized to fit the three legends placed at x = 1.2 in
-  ## plot coords. At cex 1.1 the longest legend texts (Habitat titles
-  ## like 'OuterSlope') need ~2 in of horizontal real estate;
-  ## the previous mar = 10 lines (~1.5 in) let the legends spill past
-  ## the panel-A box and overlap onto panel B. mar = 16 lines
-  ## (~2.4 in) keeps them fully inside the right margin.
+  ## mar=16 (~2.4in) right margin fits the 3 legends; mar=10 let them spill onto panel B.
   par(mar = c(0, 0, 0, 16), xpd = FALSE)
   
   plot(network,
        layout             = lay,
-       vertex.label       = vertex_labels,
+       vertex.label       = indicator_label,
        vertex.color       = V(network)$color,
        vertex.shape       = V(network)$shape,
        vertex.size        = V(network)$size,

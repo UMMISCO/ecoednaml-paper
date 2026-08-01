@@ -1,12 +1,18 @@
 # =================================================================================
 # Script name: FigureS2_S3.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
+# Date created: 2026-05-12
 # Purpose: Build two figures
 #            - Figure S2: 4-panel figure for pairwise correlation between degree
 #                         centrality, betweeness centrality and feature importance; 
 #                         and a scatterplot3D showing all these metrics
 #            - Figure S3: Get the top 20 MOTUs based on betweeness centrality and
 #                         degree centraily
+# Inputs:  analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda (latest)
+# Outputs: analyses/figures/FigureS2_S3/FigureS2.pdf
+#          analyses/figures/FigureS2_S3/FigureS3.pdf
 # =================================================================================
 
 # -----------------------------------------------------------------------------
@@ -154,9 +160,6 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in% paste0(cols_to_rename
 # Step 2 — recode DeepSlope AFTER assigned_class column exists under its correct name
 sp.chisq_habitat$assigned_class[sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
 
-# Step 3 — also recode any DeepSlope column name suffixes (padj_PH_, residual_)
-colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150", colnames(sp.chisq_habitat))
-
 nodes_tree.df <- modularity.df[, c("name", "fast_greedy")] %>%
   # Join habitat-level chi-sq assignment — rename inside select to avoid clash
   dplyr::left_join(
@@ -184,14 +187,9 @@ nodes_tree.df <- nodes_tree.df[, c("name", "Habitat", "Zone", "Module")]
 
 colnames(nodes_tree.df)[colnames(nodes_tree.df)=="name"] <- "feature"
 
-taxonomy.df <- read.csv(file.path(data_dir, "sm_taxonomy_final_V2.csv"), stringsAsFactors = FALSE)
-taxonomy.df$feature <- gsub(" ", ".", taxonomy.df$feature)
-# merge with taxonomy
-nodes_tree_taxo.df <- merge(nodes_tree.df, taxonomy.df, by = "feature", all.x = TRUE)
-
 # merge with centrality metrics
 nodes_tree_taxo.df <- merge(
-  nodes_tree_taxo.df,
+  nodes_tree.df,
   nodes.annot[, c("name", "betw_cent", "degr_cent")],
   by.x = "feature", by.y = "name", all.x = TRUE
 )
@@ -210,16 +208,12 @@ nodes_tree_taxo.df$mean_featureImportance[is.na(nodes_tree_taxo.df$mean_featureI
 nodes_tree_taxo.df$IsIndSp[is.na(nodes_tree_taxo.df$IsIndSp)]                               <- FALSE
 
 # ---------------------------------------------------------------------------
-# 1. Build phylo object (unchanged)
+# Select per-MOTU metrics used by the correlation/bubble plots below
 # ---------------------------------------------------------------------------
 
 tree_df <- nodes_tree_taxo.df %>%
-  dplyr::select(feature, family, genus, Module, Zone, Habitat,
-                betw_cent, degr_cent, mean_featureImportance, IsIndSp) %>%
-  dplyr::mutate(
-    family = ifelse(is.na(family), "Unk_family", family),
-    genus  = ifelse(is.na(genus),  paste0(family, "_unk_genus"), genus)
-  )
+  dplyr::select(feature, Module, Zone, Habitat,
+                betw_cent, degr_cent, mean_featureImportance, IsIndSp)
 
 # ---------------------------------------------------------------------------
 # 4-panel correlation figure

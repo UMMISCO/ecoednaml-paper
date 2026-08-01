@@ -2,10 +2,19 @@
 # Script name: scalenet_network_inference.R
 # Author: Estephe Kana & Edi Prifti & Eugeni Belda
 # Date created: 2025-08-26
-# Purpose: Reconstruct a co-presence network from eDNA data using ScaleNet,
+# Purpose: Reconstruct a co-occurence network from eDNA data using ScaleNet,
 #     and annotate the network with species' habitat preferences and indicator status.
-# Inputs: smX_pres_abs_matrix_final.rda (presence/absence data), annotation data, predomics key species info
-# Outputs: annotation_data.Rda
+# Inputs:  data/smX_pres_abs_matrix.rda
+#          analyses/files/txt/presanceAbsence_table_prev_3.txt 
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#
+# Outputs: analyses/analysis_outputs/scalenet_results/ 
+#          analyses/figures/scalenet_network_ecorr<ecorr_percent>_all_strat_group_<date>.pdf
+#          analyses/files/rdata/graph_data/graph_data_ecorr<ecorr_percent>_all_strat_<date>.rda
+#            (network, edges.all, nodes, nodes.annot, edges.filt.ext, lay,
+#             sp.chisq_posthoc, sp.chisq_posthoc.habitat)
+#          analyses/files/rdata/graph_data/graph_data_ecorr<ecorr_percent>_all_strat_<date>_sessionInfo.txt
 # =====================================================================================
 
 # -----------------------------------------------------------------------------
@@ -29,7 +38,6 @@ if (length(args) < 1) {
 ecorr_percent <- as.numeric(args[1])
 
 # Check for required packages
-# Note: scalenet — contact authors or install from source
 required_pkgs <- c("reshape2", "plyr", "scalenet", "chisq.posthoc.test", "igraph")
 missing_pkgs  <- required_pkgs[!sapply(required_pkgs, requireNamespace, quietly = TRUE)]
 if (length(missing_pkgs) > 0)
@@ -41,8 +49,6 @@ library(plyr)
 library(scalenet)
 library(chisq.posthoc.test)
 library(igraph)
-
-set.seed(8)
 
 # define paths
 script_path  <- normalizePath(sub("--file=", "", grep("--file=", commandArgs(trailingOnly = FALSE), value = TRUE)))
@@ -58,15 +64,10 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
-load(file.path(data_dir, "smX_pres_abs_matrix_final_V2.rda"))
+load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
 rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Station
 meta_cols <- c("Station", "Habitat", "Zone", "hab_inoff")
 edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% meta_cols])
-
-# smX_pres_abs_matrix_final.rda is already filtered at 3% prevalence upstream
-# (make_db_object_clean.R), so no further filtering is applied here.
-# filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, 3)
-filtered_edna_presenceAbsence <- edna_presenceAbsence
 
 # Function to compute chi-square + post-hoc
 compute_chisq_post_hoc <- function(df, group_var = "Zone") {
@@ -195,11 +196,11 @@ if (any(is.na(sample.info$Zone))) {
 }
 table(sample.info$Habitat, sample.info$Zone)
 
-pa.df <- as.data.frame(t(filtered_edna_presenceAbsence))
+pa.df <- as.data.frame(t(edna_presenceAbsence))
 pa.df$species <- rownames(pa.df)
 pa.df <- reshape2::melt(pa.df, id.vars = "species")
 pa.df$presabs <- pa.df$value
-df.pa.sample.info <- merge(pa.df, sample.info[,c("Station","Zone", "Habitat")], by.x="variable", by.y="Station", all.x=TRUE)
+df.pa.sample.info <- merge(pa.df, sample.info[,c("Station","Zone", "Habitat")], by.x="variable", by.y="Station", all.x=TRUE, sort = FALSE)
 
 # Compute chisq + PH at zone level
 sp.chisq_posthoc <- compute_chisq_post_hoc(df.pa.sample.info)
@@ -227,7 +228,7 @@ if (dir.exists(results_path)) {
   message("Directory existed: ", results_path)
 } else {
   message("Directory does not exist: ", results_path)
-  # set.seed(8)
+  set.seed(65)
   tmp <- scs(workspaceDir = results_path,
              argInData = as.data.frame(df),
              argReconsMeth = c("aracne", "bayes_hc"),
@@ -291,7 +292,7 @@ select_network_attributes <- function(edgesListPath, ecorr_percent, taxo) {
   edges$IsIndicSp_ter <- ifelse(edges$from %in% unique(keySpecies_ter$feature) | edges$to %in% unique(keySpecies_ter$feature), TRUE, FALSE)
   
   dim(edges)
-  # select links where we have a key indicator species or ecorr > ecorr_threshold
+  # select links where |ecorr| > ecorr_threshold
   ecorr_threshold <- ecorr_percent / 100
   edges.filt <- edges[abs(edges$ecorr) > ecorr_threshold,]
   dim(edges.filt)
@@ -316,7 +317,6 @@ select_network_attributes <- function(edgesListPath, ecorr_percent, taxo) {
 network.attributes <- select_network_attributes(fname, ecorr_percent, taxo)
   
 # Build the igraph network
-# create the igraph object
 network <- igraph::graph_from_data_frame(d = network.attributes$edges.filt, directed = TRUE, vertices = network.attributes$nodes.annot)
 
 isolated_vertices <- V(network)[igraph::degree(network, mode = "all") == 0]

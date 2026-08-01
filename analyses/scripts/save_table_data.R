@@ -4,11 +4,11 @@
 # Date created: 2025-12-10
 # Purpose: Filter eDNA presence/absence data by prevalence and save
 #          presence/absence table(s) for downstream analyses.
-# Inputs: data/smX_pres_abs_matrix_final.rda
+# Inputs: data/smX_pres_abs_matrix.rda
 # Outputs:
-#   (default) presanceAbsence_table.txt                              — full dataset, used by ScaleNet
-#   (optional) presanceAbsence_table_prev_<N>_<stratum>.txt         — per stratum
-#              presanceAbsence_table_prev_<N>_<stratum1>_<stratum2>.txt — pairwise
+#   (default) analyses/files/txt/presanceAbsence_table_prev_<N>.txt                  — full dataset, used by ScaleNet
+#   (optional) analyses/files/txt/presanceAbsence_table_prev_<N>_<stratum>.txt         — per stratum
+#              analyses/files/txt/presanceAbsence_table_prev_<N>_<stratum1>_<stratum2>.txt — pairwise
 # ====================================================================================================
 
 # ----------------------------------------------------------------------------------------------------
@@ -25,7 +25,7 @@
 # define arguments for the script
 args <- commandArgs(trailingOnly = TRUE)
 
-# Define threshold variables to select edges
+# Prevalence rate used to label the output filenames (see comment below)
 species_prev_rate <- as.numeric(args[1])
 
 # Whether to also save per-stratum and pairwise tables (default: FALSE)
@@ -45,14 +45,12 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
-load(file.path(data_dir, "smX_pres_abs_matrix_final_V2.rda"))
+load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
 meta_cols <- c("Station", "Habitat", "Zone", "hab_inoff")
 edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% meta_cols])
 rownames(edna_presenceAbsence) <- smX_pres_abs_matrix$Station
 
-# smX_pres_abs_matrix_final.rda is already filtered at 3% prevalence upstream
-# (make_db_object_clean.R), so no further filtering is applied here;
-# species_prev_rate is only used to label the output file names/paths below.
+# Already prevalence-filtered upstream (make_db_object_clean.R); species_prev_rate only labels output filenames.
 # filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, species_prev_rate)
 filtered_edna_presenceAbsence <- edna_presenceAbsence
 

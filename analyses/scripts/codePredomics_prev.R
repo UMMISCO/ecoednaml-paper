@@ -4,9 +4,10 @@
 # Date created: 2025-12-10
 # Purpose: Run Predomics (bininter/terinter) pairwise habitat comparisons on
 #          eDNA presence/absence data filtered by prevalence.
-# Inputs:  data/smX_pres_abs_matrix_final.rda
+# Inputs:  data/smX_pres_abs_matrix.rda
 # Outputs: analyses/analysis_outputs/<algorithm>_output_data/
 #            <algorithm>_Predomics_all_analyses_overall_data_<group>_prev_<N>.Rda
+#          analyses/analysis_outputs/sessionInfo_predomics_<algorithm>_<date>.txt
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -70,14 +71,12 @@ analyses_dir <- file.path(repo_root, "analyses")
 source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
-load(file.path(data_dir, "smX_pres_abs_matrix_final_V2.rda"))
+load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
 rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Station
 base_meta_cols <- c("Station", "Habitat", "Zone", "hab_inoff")
 edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% base_meta_cols])
 
-# smX_pres_abs_matrix_final.rda is already filtered at 3% prevalence upstream
-# (make_db_object_clean.R), so no further filtering is applied here;
-# prevalence_rate is only used to label the output file name below.
+# Already prevalence-filtered upstream (make_db_object_clean.R); prevalence_rate only labels the output filename.
 # filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, prevalence_rate)
 filtered_edna_presenceAbsence <- edna_presenceAbsence
 
@@ -85,7 +84,7 @@ acc <- data.frame(filtered_edna_presenceAbsence)
 acc$Station <- rownames(acc)
 
 # merge presence/absence table with sample info (Zone/hab_inoff already derived from Habitat)
-acc <- merge(acc, smX_pres_abs_matrix[, base_meta_cols], by = 'Station', all.x = TRUE)
+acc <- merge(acc, smX_pres_abs_matrix[, base_meta_cols], by = 'Station', all.x = TRUE, sort = FALSE)
 rownames(acc) <- acc$Station
 
 # rename Habitat/Zone to match the habitat-group variable names used below
@@ -229,7 +228,7 @@ save_pred_results <- function(results_pred, X, ilevels){
   subdf$value = round(subdf$value, digits = 3)
   # get the class vector of results
   subdf$sign = ifelse(subdf$sign == -1, ilevels[[1]], ilevels[[2]])
-  # get the class vector of results
+  # get the list of FBM species
   fbm.species = results_pred$FI_fmbFeats$summary$feature
   # add a column to indicate if a species is an indicator or not
   subdf$IsIndsp = as.integer(subdf$feature %in% fbm.species)

@@ -1,10 +1,14 @@
 # =============================================================================
 # Script name: Figure3_code.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
+# Date created: 2026-05-12
 # Purpose: Build a 3-panel publication figure:
 #   Panel A — Feature Importance and Cliff's delta of indicator MOTUs by Comparison
 #   Panel B — AUC performances in Testing of Predomics FBM models by comparison
 #   Panel C — PERMANOVA of set of MOTUs from all the community or from indicator MOTUs identified by Predomics bininter and terinter
+# Inputs:  analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+# Outputs: analyses/figures/Figure3/Figure3.pdf
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -245,11 +249,7 @@ plot1_data$taxa_type <- ifelse(
 )
 plot1_data$feature <- factor(plot1_data$feature, levels = feature_order)
 
-## Non-indicator cells filled white (was gray80) so they no longer
-## clash with the gray80 used to encode the terinter source in panels
-## B and D. Tile borders changed to gray70 so the white tiles remain
-## visible against the white panel background, and the legend swatch
-## inherits the same thin gray border.
+## Fill: black = indicator MOTU, white = non-indicator MOTU
 plot1 <- ggplot(plot1_data, aes(x = comparison, y = feature)) +
   geom_tile(aes(fill = taxa_type), colour = "gray70", linewidth = 0.4) +
   scale_fill_manual(
@@ -267,10 +267,7 @@ plot1 <- ggplot(plot1_data, aes(x = comparison, y = feature)) +
     legend.position = "top",
     legend.text = element_text(size = 17),
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 18),
-    ## The 55 MOTU labels on the y-axis share ~15 in of vertical space
-    ## (panel A is 3/4 of PDF h=20). Size 20 (0.28 in/label) overlapped;
-    ## size 13 (0.18 in) leaves ~0.09 in margin per label -- readable
-    ## without overlap.
+    ## size=13 avoids the y-axis label overlap that size=20 caused across the 55 MOTUs.
     axis.text.y = element_text(size = 13),
     panel.grid = element_blank(),
     axis.title.x = element_text(size = 20),
@@ -555,11 +552,8 @@ plot5_labeled <- plot5 +
   ggtitle("C") +
   theme(plot.title = element_text(face = "bold", size = 24))
 
-# Wrap combined_plot1 as a grob so patchwork treats it as a single unit.
-# - heights = c(3, 1) gives panel A 75% of the vertical so the 55 MOTU
-#   labels on the y-axis have comfortable spacing.
-# - widths = c(1, 1.5) makes panel B (AUC boxplot, only 3 boxplots) narrower
-#   so panel C (PERMANOVA, 3 facets each with 3 bars) gets more room.
+# heights=c(3,1) gives panel A 75% height for the 55 MOTU y-axis labels;
+# widths=c(1,2.5) gives panel C (PERMANOVA) more room than panel B (AUC).
 final_figure <- wrap_elements(full = patchworkGrob(combined_plot_labeled)) /
   ((plot4_labeled | plot5_labeled) + plot_layout(widths = c(1, 2.5))) +
   plot_layout(heights = c(3, 1))
