@@ -275,7 +275,12 @@ plot1 <- ggplot(plot1_data, aes(x = comparison, y = feature)) +
     panel.background = element_rect(fill = "white", colour = NA),
     plot.title = element_text(face = "bold", size = 20)
   ) +
-  scale_y_discrete(drop = FALSE)
+  ## Per Eugeni Belda's review: features were labelled with the
+  ## dataset's historical 'OTU...' prefix but the manuscript talks
+  ## about MOTUs throughout. Rewriting at render time keeps the
+  ## upstream data structure unchanged.
+  scale_y_discrete(drop = FALSE,
+                   labels = function(x) sub("^OTU", "MOTU", x))
 
 # Plot 2: Feature importance
 featImp.df.filtered$sign <- factor(featImp.df.filtered$sign, levels=c("-1","1"))

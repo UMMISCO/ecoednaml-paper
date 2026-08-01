@@ -46,11 +46,25 @@ repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 
 analyses_dir <- file.path(repo_root, "analyses")
+# Load HABITAT_RECODE / recode_habitats() so the legacy habitat codes
+# (Soft_back_reef, Reef_outer_slope, Summit50/250/500) stored in the
+# cached graph_data Rda can be mapped onto the renamed codes
+# (BackReef, OuterSlope, Seamount50/250/500). Figure 4 does not currently
+# render any habitat-valued column, but recoding defensively keeps
+# nodes.annot consistent with the rest of the pipeline.
+source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
                                pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
 load(graph_data_path)
+
+# Recode the legacy habitat codes in nodes.annot$assigned_class.habitat
+# (carrying the per-node habitat assignment from the chi-square post-hoc)
+# so it matches the renamed palette keys used elsewhere in the pipeline.
+if ("assigned_class.habitat" %in% colnames(nodes.annot)) {
+  nodes.annot$assigned_class.habitat <- recode_habitats(nodes.annot$assigned_class.habitat)
+}
 
 # load indicator species — terinter model
 load(file.path(analyses_dir, "analysis_outputs", "terinter_output_data", "terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda"))
@@ -90,7 +104,7 @@ panel_A <- cowplot::as_grob(function() {
 
   ## mar=16 (~2.4in) right margin fits the 3 legends; mar=10 let them spill onto panel B.
   par(mar = c(0, 0, 0, 16), xpd = FALSE)
-  
+
   plot(network,
        layout             = lay,
        vertex.label       = indicator_label,
