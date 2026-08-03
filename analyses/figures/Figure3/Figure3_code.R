@@ -1,10 +1,14 @@
 # =============================================================================
 # Script name: Figure3_code.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
+# Date created: 2026-05-12
 # Purpose: Build a 3-panel publication figure:
 #   Panel A — Feature Importance and Cliff's delta of indicator MOTUs by Comparison
 #   Panel B — AUC performances in Testing of Predomics FBM models by comparison
 #   Panel C — PERMANOVA of set of MOTUs from all the community or from indicator MOTUs identified by Predomics bininter and terinter
+# Inputs:  analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+# Outputs: analyses/figures/Figure3/Figure3.pdf
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -182,7 +186,6 @@ for (i in unique(mergedf.all$comparison)) {
 }
 
 # Combine the effect sizes and feature importance results into data frames for plotting
-
 effsize.df <- do.call(rbind, lapply(names(model_perf), function(comp) {
   do.call(rbind, lapply(names(model_perf[[comp]]), function(src) {
     df         <- model_perf[[comp]][[src]][["effectSizes"]]
@@ -192,7 +195,6 @@ effsize.df <- do.call(rbind, lapply(names(model_perf), function(comp) {
     df
   }))
 }))
-
 
 featImp.df <- do.call(rbind, lapply(names(model_perf), function(comp) {
   do.call(rbind, lapply(names(model_perf[[comp]]), function(src) {
@@ -223,7 +225,6 @@ effsize.df.filtered$label <- ifelse(
   ifelse(effsize.df.filtered$pval.wilcox < 0.05, "*",""))
 
 # Get all unique features and set consistent order across all plots
-
 feature_order <- featImp.df.filtered %>%
   group_by(feature) %>%  
   summarise(mean_importance = mean(abs(value), na.rm = TRUE)) %>%
@@ -248,11 +249,7 @@ plot1_data$taxa_type <- ifelse(
 )
 plot1_data$feature <- factor(plot1_data$feature, levels = feature_order)
 
-## Non-indicator cells filled white (was gray80) so they no longer
-## clash with the gray80 used to encode the terinter source in panels
-## B and D. Tile borders changed to gray70 so the white tiles remain
-## visible against the white panel background, and the legend swatch
-## inherits the same thin gray border.
+## Fill: black = indicator MOTU, white = non-indicator MOTU
 plot1 <- ggplot(plot1_data, aes(x = comparison, y = feature)) +
   geom_tile(aes(fill = taxa_type), colour = "gray70", linewidth = 0.4) +
   scale_fill_manual(
@@ -270,10 +267,7 @@ plot1 <- ggplot(plot1_data, aes(x = comparison, y = feature)) +
     legend.position = "top",
     legend.text = element_text(size = 17),
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 18),
-    ## The 55 MOTU labels on the y-axis share ~15 in of vertical space
-    ## (panel A is 3/4 of PDF h=20). Size 20 (0.28 in/label) overlapped;
-    ## size 13 (0.18 in) leaves ~0.09 in margin per label -- readable
-    ## without overlap.
+    ## size=13 avoids the y-axis label overlap that size=20 caused across the 55 MOTUs.
     axis.text.y = element_text(size = 13),
     panel.grid = element_blank(),
     axis.title.x = element_text(size = 20),
@@ -294,10 +288,7 @@ featImp.df.filtered$sign <- factor(featImp.df.filtered$sign, levels=c("-1","1"))
 featImp.df.filtered$source <- factor(featImp.df.filtered$source, 
                                      levels=c("bininter","terinter"))
 
-## Okabe-Ito colour-blind-safe pair, equally weighted so neither
-## source visually outranks the other (was black + gray80, which
-## made terinter read as a de-emphasised version of bininter even
-## though terinter was the stronger model in panel C).
+
 source_colours <- c("bininter" = "#0072B2",  # steel blue
                     "terinter" = "#D55E00")  # dark vermillion
 
@@ -370,6 +361,7 @@ fbmAUC_bininter.df <- do.call(
 
 fbmAUC.df <- rbind(fbmAUC_bininter.df, fbmAUC_terinter.df)
 fbmAUC.df$language <- factor(fbmAUC.df$language, levels=c("bininter","terinter"))
+fbmAUC.df$source   <- factor(fbmAUC.df$source,   levels = c("bininter", "terinter"))
 
 # Automatic pairwise comparisons
 comparisons_list <- levels(factor(fbmAUC.df$comparison))
@@ -382,44 +374,40 @@ model_counts <- fbmAUC.df %>%
 
 model_counts$label <- paste0("n=", model_counts$n)
 
-## Per Thomas Lamy's review: split the AUC boxplot by source so
-## bininter and terinter appear as two side-by-side boxes per
-## zone contrast, instead of one pooled box per contrast. Lets
-## the reader compare the two model classes directly within each
-## contrast.
-plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_, fill = language)) +
-  geom_boxplot(alpha = 0.55, outlier.shape = NA,
-               position = position_dodge(width = 0.75), width = 0.6) +
-  geom_point(aes(colour = language),
-             position = position_jitterdodge(jitter.width = 0.15,
-                                             dodge.width = 0.75,
-                                             seed = 123),
-             size = 1.6,
+dodge_w <- 0.8
+y_top   <- max(fbmAUC.df$auc_, na.rm = TRUE)
+
+plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_)) +
+  geom_boxplot(aes(fill=source),
+               position = position_dodge(width=dodge_w),
+               width=0.7, alpha = 0.6, outlier.shape = NA) +
+  geom_point(aes(colour = language, group = source),
+             position = position_jitterdodge(jitter.width = 0.25, dodge.width=dodge_w, seed = 123),
+             size = 2,
              alpha = 0.6
   ) +
   geom_text(data = model_counts,
-            aes(x = comparison, y = Inf, label = label),
-            vjust = 1.5, size = 8, inherit.aes = FALSE) +
-  scale_colour_manual("Source", values = source_colours) +
-  scale_fill_manual("Source",   values = source_colours) +
-  ## Bininter-vs-terinter Wilcoxon test WITHIN each contrast, since
-  ## the boxplots are now split by source. The previous
-  ## between-contrast significance bars (****) were dropped because
-  ## they no longer make sense on dodged boxes.
-  ggpubr::stat_compare_means(
-    aes(group = language),
-    method  = "wilcox.test",
-    label   = "p.signif",
-    label.y = 1.02,
-    size    = 7,
-    hide.ns = TRUE
+            aes(x = comparison, y = y_top + 0.075, label = label),
+            size = 8, inherit.aes = FALSE) +
+  scale_fill_manual("Source", values = source_colours) +
+  scale_colour_manual("Model", values = source_colours) +
+  stat_compare_means(aes(group = source),
+    method = "wilcox.test",
+    # comparisons = comparison_pairs,
+    label = "p.signif",
+    # step.increase = 0.08,
+    label.y = y_top + 0.03,
+    hide.ns = TRUE,
+    size = 9
   ) +
   scale_y_continuous(
     expand = expansion(mult = c(0.05, 0.15))
   ) +
   ylab("Test AUC") +
   xlab("FBM models") +
-  guides(colour = guide_legend(title = "Model"), size = "none") +
+  guides(fill = guide_legend(title = "Source",  order = 1),
+         colour = guide_legend(title = "Model",  order = 2), 
+         size = "none") +
   theme_bw() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 18),
@@ -427,7 +415,7 @@ plot4 <- ggplot(data = fbmAUC.df, aes(x = comparison, y = auc_, fill = language)
     strip.background = element_rect(fill = NA),
     axis.title = element_text(size = 20),
     legend.position = "bottom",
-    legend.text  = element_text(size = 20),
+    legend.text  = element_text(size = 18),
     legend.title = element_text(size = 20)
   )
 
@@ -464,14 +452,11 @@ permanova_analysis_source <- function(comparison, source_name) {
   all.y <- data$y
   names(all.y) <- rownames(all.X)
 
-  # NOTE: tfeats.fbm$feature was converted to factor earlier (for plot ordering);
-  # subsetting all.X by a factor uses integer level indices, not names, so we
-  # must coerce back to character here to get name-based column selection.
   fbm.species <- unique(as.character(
-    tfeats.fbm[tfeats.fbm$comparison == comparison &
-                 tfeats.fbm$source     == source_name, "feature"]
+    tfeats.fbm$feature[tfeats.fbm$comparison == comparison &
+                         tfeats.fbm$source     == source_name]
   ))
-  
+
   if (length(fbm.species) == 0) return(NULL)
   
   subdf <- all.X[, fbm.species, drop = FALSE]
@@ -572,11 +557,8 @@ plot5_labeled <- plot5 +
   ggtitle("C") +
   theme(plot.title = element_text(face = "bold", size = 24))
 
-# Wrap combined_plot1 as a grob so patchwork treats it as a single unit.
-# - heights = c(3, 1) gives panel A 75% of the vertical so the 55 MOTU
-#   labels on the y-axis have comfortable spacing.
-# - widths = c(1, 1.5) makes panel B (AUC boxplot, only 3 boxplots) narrower
-#   so panel C (PERMANOVA, 3 facets each with 3 bars) gets more room.
+# heights=c(3,1) gives panel A 75% height for the 55 MOTU y-axis labels;
+# widths=c(1,2.5) gives panel C (PERMANOVA) more room than panel B (AUC).
 final_figure <- wrap_elements(full = patchworkGrob(combined_plot_labeled)) /
   ((plot4_labeled | plot5_labeled) + plot_layout(widths = c(1, 2.5))) +
   plot_layout(heights = c(3, 1))

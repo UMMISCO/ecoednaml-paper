@@ -2,11 +2,12 @@
 # Script name: FigureS1_code.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
 # Date created: 2025-12-10
-# Purpose: Build a multi-panel sensitivity figure across three ecorr thresholds:
-#   Row 1 — Panels A/B/C: Zone-coloured co-presence networks at ecorr > 0.3/0.5/0.7
-#   Row 2 — Panels D/E/F: Indicator vs non-indicator centrality boxplots per threshold
-#   Row 3 — Panel G:      Network topology metrics summary (sensitivity analysis)
-#   Row 4 — Panels H/I/J: Zone → Module → Habitat alluvial diagrams per threshold
+# Purpose: Build a multi-panel sensitivity figure across four ecorr thresholds
+#          (0.3, 0.5, 0.6, 0.7). Rows 1-4 repeat the same 4-panel layout per
+#          threshold — network (A/E/I/M), indicator vs non-indicator centrality
+#          boxplots (B/F/J/N), Zone → Module → Habitat alluvial (C/G/K/O), and
+#          degree distribution (D/H/L/P) — followed by a shared legend row and
+#          Panel Q: network topology metrics summary across all four thresholds.
 # Inputs:  analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda
 #          analyses/analysis_outputs/{bininter,terinter}_output_data/*_prev_3.Rda
 # Outputs: analyses/figures/FigureS1/FigureS1.pdf
@@ -46,15 +47,10 @@ repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 
 analyses_dir <- file.path(repo_root, "analyses")
-# Load HABITAT_RECODE / recode_habitats() so the legacy habitat codes
-# (Soft_back_reef, Reef_outer_slope, Summit50/250/500) stored in the
-# cached graph_data Rda can be mapped onto the renamed palette keys
-# (BackReef, OuterSlope, Seamount50/250/500) before plotting.
-source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 out_dir         <- script_dir
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
-                               pattern = "^graph_data_ecorr50_all_strat_", full.names = TRUE)
+                               pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
 
 # =============================================================================
@@ -80,28 +76,21 @@ alluvial_habitat_colors <- c(
   "NS.habitat"       = "gray"
 )
 
-# Fixed cluster orderings per threshold (used for consistent y-axis alignment)
-cluster_order_30 <- c("Cluster_08", "Cluster_05", "Cluster_03", "Cluster_02",
-                      "Cluster_06", "Cluster_07", "Cluster_04", "Cluster_01", "Cluster_09")
-
-cluster_order_50 <- c("Cluster_08", "Cluster_01", "Cluster_02", "Cluster_03",
-                      "Cluster_04", "Cluster_05", "Cluster_09", "Cluster_06",
-                      "Cluster_10", "Cluster_12", "Cluster_07", "Cluster_11",
-                      "Cluster_13")
-
-cluster_order_70 <- c("Cluster_07", "Cluster_10", "Cluster_13", "Cluster_14",
-                      "Cluster_15", "Cluster_19", "Cluster_06", "Cluster_01",
-                      "Cluster_02", "Cluster_05", "Cluster_09", "Cluster_11",
-                      "Cluster_03", "Cluster_08", "Cluster_16", "Cluster_20",
-                      "Cluster_21", "Cluster_12", "Cluster_17", "Cluster_18")
-
-# Cluster order for ecorr > 0.6 (was 0.55; reverted) is left empty;
-# the alluvial panel
-# helper computes it dynamically via intersect(cluster_order,
-# present_modules) U sort(extras), so passing an empty seed simply
-# falls back to the sorted natural order of the modules detected at
-# this threshold.
-cluster_order_60 <- character(0)
+# cluster_order_30 <- c("Cluster_08", "Cluster_05", "Cluster_03", "Cluster_02",
+#                       "Cluster_06", "Cluster_07", "Cluster_04", "Cluster_01", "Cluster_09")
+#
+# cluster_order_50 <- c("Cluster_08", "Cluster_01", "Cluster_02", "Cluster_03",
+#                       "Cluster_04", "Cluster_05", "Cluster_09", "Cluster_06",
+#                       "Cluster_10", "Cluster_12", "Cluster_07", "Cluster_11",
+#                       "Cluster_13")
+#
+# cluster_order_70 <- c("Cluster_07", "Cluster_10", "Cluster_13", "Cluster_14",
+#                       "Cluster_15", "Cluster_19", "Cluster_06", "Cluster_01",
+#                       "Cluster_02", "Cluster_05", "Cluster_09", "Cluster_11",
+#                       "Cluster_03", "Cluster_08", "Cluster_16", "Cluster_20",
+#                       "Cluster_21", "Cluster_12", "Cluster_17", "Cluster_18")
+#
+# cluster_order_60 <- character(0)
 
 # =============================================================================
 # LOAD DATA
@@ -129,20 +118,6 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in%
                              paste0(cols_to_rename, ".habitat")] <- cols_to_rename
 sp.chisq_habitat$assigned_class[
   sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
-# Also recode legacy habitat codes in assigned_class
-# (Soft_back_reef/Reef_outer_slope/Summit50/250/500 -> new names) so the
-# values match the renamed palette keys / factor levels used by the
-# alluvial panels.
-sp.chisq_habitat$assigned_class <- recode_habitats(sp.chisq_habitat$assigned_class)
-colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150",
-                                   colnames(sp.chisq_habitat))
-# Rename column-name suffixes for the 5 renamed habitat codes too
-# (e.g. padj_PH_Summit500 -> padj_PH_Seamount500) for consistency with
-# the renamed palette keys.
-for (.old in names(HABITAT_RECODE)) {
-  colnames(sp.chisq_habitat) <- gsub(.old, HABITAT_RECODE[[.old]],
-                                     colnames(sp.chisq_habitat), fixed = TRUE)
-}
 sp.chisq_zone <- sp.chisq_posthoc
 
 zone_df <- sp.chisq_zone %>%
@@ -244,7 +219,7 @@ build_threshold_network <- function(edges_all, threshold, zone_df, habitat_df,
 }
 
 # =============================================================================
-# BUILD THE THREE NETWORKS
+# BUILD THE FOUR NETWORKS
 # =============================================================================
 
 message("Building network at ecorr > 0.3 ...")
@@ -268,7 +243,7 @@ message("Building network at ecorr > 0.7 ...")
 net70 <- build_threshold_network(edges.all, 0.7, zone_df, habitat_df, feat_summary)
 
 # =============================================================================
-# PANELS A / B / C — Zone-coloured network plots
+# PANELS A / E / I / M — Zone-coloured network plots
 # =============================================================================
 
 make_network_panel <- function(net_obj, threshold_label, panel_label,
@@ -315,30 +290,17 @@ make_network_panel <- function(net_obj, threshold_label, panel_label,
   })
 }
 
-## Per-threshold panel rename to match the new 4-row x 4-column layout:
-##   row 1 (ecorr > 0.3)  -> A network | B centrality | C alluvial | D degree
-##   row 2 (ecorr > 0.5)  -> E         | F            | G          | H
-##   row 3 (ecorr > 0.6) -> I         | J            | K          | L
-##   row 4 (ecorr > 0.7)  -> M         | N            | O          | P
-##
-## 0.6 is used as the 4th threshold for the round-number sensitivity
-## scan readable progression (0.3, 0.5, 0.6, 0.7). A fine-grained scan
-## (0.30-0.85 step 0.05) showed that the best scale-free fit (highest
-## log-log R^2 = 0.91, gamma = 2.09) is reached at ecorr ~ 0.55, just
-## inside the 0.5-0.6 interval; the manuscript caption states this
-## explicitly so a reader doesn't have to interpolate it from the
-## panels.
+## Panel rows: 0.3->A-D, 0.5->E-H, 0.6->I-L, 0.7->M-P (network|centrality|alluvial|degree).
+## 0.6 used as a round 4th threshold; best scale-free fit (R^2=0.91) is
+## actually at ecorr~0.55, noted in the manuscript caption instead.
 panel_A <- make_network_panel(net30, "0.3",  "A", zone_pal, sp.chisq_zone)
 panel_E <- make_network_panel(net50, "0.5",  "E", zone_pal, sp.chisq_zone)
 panel_I <- make_network_panel(net60, "0.6", "I", zone_pal, sp.chisq_zone)
 panel_M <- make_network_panel(net70, "0.7",  "M", zone_pal, sp.chisq_zone)
 
-# Standalone zone and habitat legends
-## Legends now live in a single shared bottom row. Each legend uses
-## guide_legend(title.position = "top", title.hjust = 0) so the
-## title 'Zone' / 'Indicator status' / 'Habitat' sits on a line of
-## its own above the colour chips, rather than next to them where it
-## was overlapping the chips at the chosen font sizes.
+# Standalone zone and habitat legends, collected into a shared bottom row.
+## title.position="top" puts the legend title above the colour chips instead
+## of beside them, avoiding overlap at these font sizes.
 zone_legend_plot <- ggplot(
   data.frame(Zone = factor(names(zone_pal), levels = names(zone_pal))),
   aes(x = 1, y = Zone, fill = Zone)
@@ -355,11 +317,8 @@ zone_legend_plot <- ggplot(
   ) +
   guides(fill = guide_legend(title.position = "top", title.hjust = 0))
 
-## Extract the legend grob directly from the plot's gtable. cowplot's
-## get_legend / get_plot_component were inconsistent across versions
-## here -- some returned an empty zeroGrob, others returned the chip
-## strip without the title text. Walking the gtable layout for any
-## name matching 'guide-box*' is the robust path.
+## cowplot's get_legend/get_plot_component were inconsistent across versions;
+## walking the gtable for 'guide-box*' is the robust path instead.
 get_legend_safe <- function(p) {
   g  <- ggplot2::ggplotGrob(p)
   ix <- grep("guide-box", g$layout$name)
@@ -392,7 +351,7 @@ habitat_legend_plot <- ggplot(
 habitat_legend_grob <- get_legend_safe(habitat_legend_plot)
 
 # =============================================================================
-# PANELS D / E / F — Centrality boxplots: indicator vs non-indicator per threshold
+# PANELS B / F / J / N — Centrality boxplots: indicator vs non-indicator per threshold
 # =============================================================================
 
 make_boxplot_panel <- function(net_obj, threshold_label, panel_label, show_legend = FALSE) {
@@ -425,12 +384,8 @@ make_boxplot_panel <- function(net_obj, threshold_label, panel_label, show_legen
       method      = "wilcox.test",
       label       = "p.signif",
       label.x     = 1.5,
-      ## label.y.npc anchors the significance mark to 90% of the plot
-      ## panel's vertical extent so it sits inside the data area (high
-      ## up but clearly below the facet strip band that names
-      ## 'Betweenness' / 'Degree'). The previous vjust = -0.5 pushed
-      ## the mark right against the top edge, so '***' / 'ns' was
-      ## visually touching or sitting under the strip text.
+      ## label.y.npc=0.90 keeps the significance mark inside the panel, below
+      ## the facet strip; vjust=-0.5 used to push it against the top edge.
       label.y.npc = 0.90,
       size        = 12
     ) +
@@ -487,7 +442,7 @@ indic_legend_plot <- ggplot(
 indic_legend_grob <- get_legend_safe(indic_legend_plot)
 
 # =============================================================================
-# PANEL G
+# PANEL Q
 # =============================================================================
 
 make_topology_panel <- function(net_list, threshold_labels, panel_label) {
@@ -547,13 +502,8 @@ make_topology_panel <- function(net_list, threshold_labels, panel_label) {
     )
 }
 
-## Topology summary panel reinstated as panel Q at the bottom of the
-## figure (just above the legend row). The per-threshold degree
-## distributions (D / H / L / P) carry the qualitative story, but the
-## summary line plot is a useful single-glance reference showing how
-## the four scalar topology metrics (n_nodes / n_edges / n_modules /
-## modularity) co-vary with the ecorr threshold across the four sampled
-## values.
+## Panel Q: single-glance summary of how nodes/edges/modules/modularity
+## co-vary across the four ecorr thresholds.
 panel_Q <- make_topology_panel(
   net_list         = list("0.3"  = net30, "0.5"  = net50,
                           "0.6" = net60, "0.7"  = net70),
@@ -562,22 +512,18 @@ panel_Q <- make_topology_panel(
 )
 
 # =============================================================================
-# PANELS C / G / K — Zone → Module → Habitat alluvial per threshold
+# PANELS C / G / K / O — Zone → Module → Habitat alluvial per threshold
 # =============================================================================
 
 make_alluvial_panel <- function(net_obj, threshold_label, panel_label,
                                 sp.chisq_zone, sp.chisq_habitat,
-                                cluster_order, show_legend = TRUE) {
-  
+                                show_legend = TRUE) {
+
   zone_order    <- c("Shallow", "Middle", "Deep", "NS.zone")
   habitat_order <- c("Bay", "Lagoon", "BackReef", "OuterSlope",
                      "Seamount50", "DeepSlope150", "Seamount250", "Seamount500", "NS.habitat")
-  
-  present_modules <- unique(net_obj$node_df$Module)
-  extra_modules   <- sort(setdiff(present_modules, cluster_order))
-  module_order    <- c(intersect(cluster_order, present_modules), extra_modules)
-  
-  alluvial_df <- net_obj$node_df %>%
+
+  alluvial_counts <- net_obj$node_df %>%
     dplyr::select(name, Module) %>%
     dplyr::left_join(
       sp.chisq_habitat %>% dplyr::select(feature, assigned_habitat = assigned_class),
@@ -597,7 +543,20 @@ make_alluvial_panel <- function(net_obj, threshold_label, panel_label,
         TRUE ~ "NS.zone"
       )
     ) %>%
-    dplyr::count(Zone, Module, Habitat, name = "n_species") %>%
+    dplyr::count(Zone, Module, Habitat, name = "n_species")
+
+  # Order modules by dominant Habitat (most species), same approach as Figure5.
+  module_order <- alluvial_counts %>%
+    dplyr::group_by(Module, Habitat) %>%
+    dplyr::summarise(n = sum(n_species), .groups = "drop") %>%
+    dplyr::group_by(Module) %>%
+    dplyr::slice_max(n, n = 1, with_ties = FALSE) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(habitat_rank = match(Habitat, habitat_order)) %>%
+    dplyr::arrange(habitat_rank, Module) %>%
+    dplyr::pull(Module)
+
+  alluvial_df <- alluvial_counts %>%
     dplyr::mutate(
       Zone    = factor(Zone,    levels = zone_order),
       Module  = factor(Module,  levels = module_order),
@@ -660,16 +619,16 @@ make_alluvial_panel <- function(net_obj, threshold_label, panel_label,
 ## Alluvials are column 3 of each row:
 ##   C (ecorr 0.3) / G (ecorr 0.5) / K (ecorr 0.6) / O (ecorr 0.7).
 panel_C <- make_alluvial_panel(net30, "0.3",  "C", sp.chisq_zone, sp.chisq_habitat,
-                               cluster_order_30, show_legend = FALSE)
+                               show_legend = FALSE)
 panel_G <- make_alluvial_panel(net50, "0.5",  "G", sp.chisq_zone, sp.chisq_habitat,
-                               cluster_order_50, show_legend = FALSE)
+                               show_legend = FALSE)
 panel_K <- make_alluvial_panel(net60, "0.6", "K", sp.chisq_zone, sp.chisq_habitat,
-                               cluster_order_60, show_legend = FALSE)
+                               show_legend = FALSE)
 panel_O <- make_alluvial_panel(net70, "0.7",  "O", sp.chisq_zone, sp.chisq_habitat,
-                               cluster_order_70, show_legend = FALSE)
+                               show_legend = FALSE)
 
 # =============================================================================
-# PANELS D / H / L — Degree distribution (scale-free check) per threshold
+# PANELS D / H / L / P — Degree distribution (scale-free check) per threshold
 # =============================================================================
 
 make_degree_dist_panel <- function(net_obj, threshold_label, panel_label) {
@@ -679,10 +638,7 @@ make_degree_dist_panel <- function(net_obj, threshold_label, panel_label) {
   deg_tab$k    <- as.integer(deg_tab$deg)
   deg_tab$P    <- deg_tab$Freq / sum(deg_tab$Freq)
 
-  ## Power-law reference line: fit log(P) = -gamma * log(k) + c on the
-  ## right tail (k >= 2) and overlay as a dashed grey line so a reader
-  ## can eye-check how close the empirical points lie to the
-  ## scale-free expectation at each threshold.
+  ## Power-law fit (log(P) = -gamma*log(k)+c, k>=2) overlaid as a dashed reference line.
   fit_df <- deg_tab[deg_tab$k >= 2 & deg_tab$P > 0, ]
   if (nrow(fit_df) >= 3) {
     fit   <- lm(log10(P) ~ log10(k), data = fit_df)
@@ -743,16 +699,7 @@ panel_P <- make_degree_dist_panel(net70, "0.7",  "P")
 
 message("Composing figure ...")
 
-## Layout: 4 rows (one per ecorr threshold) of 4 data panels each,
-## then a topology summary line plot Q spanning the full width, then
-## a final bottom row with all three legends consolidated.
-##
-##   row 1 (ecorr > 0.3): A network | B centrality | C alluvial | D degree
-##   row 2 (ecorr > 0.5): E         | F            | G          | H
-##   row 3 (ecorr > 0.6): I        | J            | K          | L
-##   row 4 (ecorr > 0.7): M         | N            | O          | P
-##   row 5 (legends):     zone      | indicator    | habitat (2 cols wide)
-##   row 6 (summary):     Q (nodes / edges / modules / modularity vs threshold)
+## Layout: 4 threshold rows (panels A-P) + legend row + topology summary row (Q).
 
 row1 <- gridExtra::arrangeGrob(
   panel_A,

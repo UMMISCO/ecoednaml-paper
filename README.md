@@ -2,7 +2,7 @@
 
 ## 🧭 Overview
 
-***EcoEdnaNet*** is a repository that contains the code and analysis pipeline for reconstructing **co-occurrence networks of marine fish assemblages** from environmental DNA (eDNA) metabarcoding data collected around the seamounts and coastal habitats of **New Caledonia** (southwestern Pacific Ocean).
+***EcoEdnaNet*** is a repository containing the scripts for an analysis pipeline that reconstructs **co-occurrence networks of marine fish assemblages** from environmental DNA (eDNA) metabarcoding data collected around the seamounts and coastal habitats of **New Caledonia** (southwestern Pacific Ocean).
 
 The project combines an interpretable machine learning framework (**Predomics**) for indicator MOTU identification with a network inference approach (**ScaleNet**) to characterise fish community structure across a depth and habitat gradient ranging from coastal bays to deep seamount summits (500 m). Module enrichment analysis using Gene Set Enrichment Analysis (**GSEA**) links network community structure to fine-grained habitat associations.
 
@@ -12,18 +12,17 @@ The project combines an interpretable machine learning framework (**Predomics**)
 - ScaleNet reconstructed a co-occurrence network of **261 nodes and 579 edges** from 318 MOTUs filtered at 3% prevalence; 31 of the 55 indicator MOTUs were recovered in the network.
 - Indicator taxa occupy structurally marginal positions in the network (significantly lower betweenness centrality than non-indicator taxa), acting as zone-specific diagnostic signatures rather than community connectivity hubs.
 - Fast-Greedy modularity partitioned the network into **13 modules** that mirror depth zonation and fine-grained habitat structure beyond the three broad zones.
-- GSEA confirmed that **12 of the 13 modules** are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, BackReef, OuterSlope, Seamount50, DeepSlope150, Seamount250, Seamount500), revealing that eDNA co-occurrence captures habitat-associated trophic guilds rather than stochastic co-detection.
+- GSEA confirmed that **11 of the 13 modules** are non-randomly enriched for taxa associated with specific habitats (Bay, Lagoon, BackReef, OuterSlope, Seamount50, DeepSlope150, Seamount250, Seamount500), revealing that eDNA co-occurrence captures habitat-associated trophic guilds rather than stochastic co-detection.
 - A power-law fit of the degree distribution placed the network just below the canonical scale-free band ($\gamma \approx 1.94$) at the default $|\text{ecorr}| > 0.5$, with the optimum scale-free regime reached between $|\text{ecorr}| > 0.5$ and $> 0.6$ ($\gamma \approx 2.08$, max log–log $R^2 = 0.91$).
 
 ## 🔄 Project pipeline
 
 ![Project pipeline](analyses/figures/Figure2/Figure2.svg)
 
-The analysis proceeds in five sequential steps. All scripts derive their working directory from their own file path, so they can be run from any location. Place all three raw data files in `data/` before starting (see [data/README.md](data/README.md)).
+The analysis proceeds in four sequential steps. All scripts derive their working directory from their own file path, so they can be run from any location. `smX_pres_abs_matrix.rda` — the presence/absence table needed by steps 1–3 — is already provided in `data/`; see [data/README.md](data/README.md) for how to obtain the additional files needed to reproduce Figures 1 and 6.
 
 | Step | Script | Output |
 |------|--------|--------|
-| 0. Build dataset | `analyses/scripts/make_db_object.R` | `data/seamount_integrated_dataset.rda` |
 | 1. Prepare tables | `analyses/scripts/save_table_data.R` | Presence/absence tables for ScaleNet |
 | 2. Predomics analyses | `analyses/scripts/codePredomics_prev.R` | Indicator MOTU results (`.Rda`) |
 | 3. Network inference | `analyses/scripts/scalenet_network_inference.R` | `graph_data/graph_data_ecorr50_all_strat_<date>.rda` |
@@ -41,12 +40,12 @@ The analysis proceeds in five sequential steps. All scripts derive their working
 
 - **GSEA**: Gene Set Enrichment Analysis (Piano package) tests whether each Fast-Greedy module is non-randomly enriched for taxa associated with specific zones or habitats. Taxa are ranked by Benjamini–Hochberg adjusted *p*-value with the sign of the Pearson residual as direction indicator (1,000 permutations). See [Väremo et al., 2013](https://pubmed.ncbi.nlm.nih.gov/23444143/).
 
-- **PERMANOVA**: Community-level significance of habitat separation was assessed with `adonis2` (Bray-Curtis for abundance, Jaccard for presence/absence), run both on all MOTUs and on indicator MOTUs identified by Predomics.
+- **PERMANOVA**: Community-level significance of habitat separation was assessed with `adonis2` using Jaccard distances on presence/absence data, run both on all MOTUs and on indicator MOTUs identified by Predomics.
 
 
 ## 🐟 Data description
 
-This study uses an environmental DNA dataset collected by Baletaud et al. (2023) and Mathon et al. (2025) in marine ecosystems of New Caledonia. Water samples collected at each station were filtered and amplified using fish-specific 12S rRNA primers. MOTUs (Molecular Operational Taxonomic Units) were identified by matching amplicon sequences against a curated reference database. Read counts were normalised per PCR replicate using the `normFreqTC` function from the `momr` package.
+This study uses an environmental DNA dataset collected around New Caledonia (southwestern Pacific Ocean) — see the table below for sample size, habitats, and covariates. Detailed sample-collection and bioinformatic protocols are described elsewhere (Baletaud, 2022; Baletaud et al., 2023; Mathon et al., 2025); MOTUs were taxonomically assigned to the lowest resolved level (order, family, or genus when species-level assignment was not possible). Downstream analyses (Predomics, ScaleNet) use MOTU presence/absence rather than raw read counts.
 
 ![Dataset overview — map, species richness heatmap, and PCoA ordination](analyses/figures/Figure1/Figure1.svg)
 
@@ -55,14 +54,15 @@ This study uses an environmental DNA dataset collected by Baletaud et al. (2023)
 | **Feature** | **Description** |
 |-------------|-----------------|
 | **Location** | New Caledonia seamounts and coastal reefs (southwestern Pacific Ocean) |
-| **Sampling method** | Environmental DNA water filtration + 12S rRNA metabarcoding |
-| **Molecular marker** | 12S rRNA (fish-specific primers) |
+| **Number of samples** | 228 collected; 217 retained after QC (11 excluded for zero MOTU detections) |
+| **Sampling method** | eDNA water filtration (32 L per sample through 0.2 µm filters, near seafloor) + 12S rRNA metabarcoding |
+| **Molecular marker** | Mitochondrial 12S rRNA gene, *teleo* primer, Illumina MiSeq sequencing |
 | **Number of MOTUs** | 967 |
 | **Number of habitat types** | 8 (Bay, Lagoon, OuterSlope, BackReef, Seamount50, DeepSlope150, Seamount250, Seamount500) |
 | **Depth range** | 0 – 500 m |
 | **Depth strata (for analyses)** | Shallow (Bay, Lagoon, OuterSlope, BackReef), Middle (Seamount50 / DeepSlope150), Deep (Seamount250 / Seamount500) |
-| **Environmental covariates** | 13 (Sea Surface Temperature (SST) [SSTmax, SSTmean, SSTmin, SSTsd], SeafloorTemp, Salinity, chlorophyll-a (chla), current velocity (EastwardVelocity, NorthwardVelocity), reef Min distance (ReefMinDist.m), land distance, OTU richness, travel time to Nouméa) |
-| **Abundance normalisation** | `normFreqTC` (per-PCR relative frequency normalisation) |
+| **Environmental covariates** | 9 — Salinity, SST mean, seafloor temperature, chlorophyll-a (10-year averages), travel time to Nouméa, reef min distance, depth, latitude, longitude |
+| **Occurrence data** | MOTU presence/absence (detected / not detected per sample), derived directly from raw read counts |
 | **Prevalence filter (analyses)** | 3% of samples |
 
 ### Ecological context
@@ -73,7 +73,7 @@ This study uses an environmental DNA dataset collected by Baletaud et al. (2023)
 
 ## 💾 Data availability
 
-The processed eDNA dataset used here are archived in the public repository [Zenodo](DOI: [add DOI once deposited]). The New Caledonian legislation regarding sensitive environmental data does not permit unrestricted public access. Accordingly, access to the data will require a Data Use Agreement (DUA), which will be systematically granted for reproducibility purposes.
+The processed eDNA dataset used here are archived in the public repository [Zenodo](https://doi.org/10.5281/zenodo.21502975). The New Caledonian legislation regarding sensitive environmental data does not permit unrestricted public access. Accordingly, access to the data will require a Data Use Agreement (DUA), which will be systematically granted for reproducibility purposes.
 
 
 ## 📁 Repository structure
@@ -81,9 +81,9 @@ The processed eDNA dataset used here are archived in the public repository [Zeno
 | Folder | Description |
 |--------|--------------|
 | `analyses/analysis_outputs/` | Contains the outputs of Predomics and ScaleNet analyses |
-| `analyses/figures/` | Contains all the vizualization with their code as presented in the paper linked to this project |
-| `analyses/files/` | Contains others output files of the pipeline|
-| `analyses/scripts/` | Contains all the scripts for curating data, indicator taxa identification and network inference analyses |
+| `analyses/figures/` | Contains all the visualizations with their code as presented in the paper linked to this project |
+| `analyses/files/` | Contains other output files of the pipeline |
+| `analyses/scripts/` | Contains the scripts for preparing presence/absence tables, indicator taxa identification (Predomics), and network inference (ScaleNet) |
 | `data/` | Provides instructions to get the dataset used in this project |
 
 
@@ -92,12 +92,10 @@ The processed eDNA dataset used here are archived in the public repository [Zeno
 ```r
 # ── CRAN packages ──────────────────────────────────────────────────────────────
 install.packages(c(
-  # Data handling
-  "readr", "readxl", "data.table",
   # Plotting
   "ggplot2", "patchwork", "viridis", "ggrepel", "ggpubr",
-  "cowplot", "ggalluvial", "ggh4x", "ggspatial",
-  "maps", "rnaturalearth", "sf", "scatterplot3d", "ggplotify",
+  "cowplot", "ggalluvial", "ggh4x", "ggspatial", "gridExtra",
+  "maps", "rnaturalearth", "sf", "scatterplot3d", "ggplotify", "ape",
   # Analysis
   "vegan", "igraph", "reshape2", "plyr",
   "chisq.posthoc.test", "dplyr", "tidyr"
@@ -110,9 +108,6 @@ BiocManager::install(c("piano", "ggtree", "ggtreeExtra", "ggnewscale"))
 # ── GitHub packages ────────────────────────────────────────────────────────────
 install.packages("remotes")
 
-# momr — read-count normalisation
-remotes::install_github("eprifti/momr")
-
 # Predomics — interpretable machine learning for omics data
 remotes::install_github("predomics/predomicspkg", dependencies = TRUE)
 
@@ -123,7 +118,7 @@ remotes::install_github("UMMISCO/scalenet")
 ## 🧠 Dependencies
 
 - **R version**: 4.4.0 or later
-- **Key packages**: `predomics` (1.1.0), `scalenet` (1.2.3), `momr`, `igraph` (2.2.1), `vegan` (2.7.2), `piano` (2.22.0), `ggtree`, `ggplot2`, `patchwork`
+- **Key packages**: `predomics` (1.1.0), `scalenet` (1.2.3), `igraph` (2.2.1), `vegan` (2.7.2), `piano` (2.22.0), `ggtree`, `ggplot2`, `patchwork`
 
 ## 💰 Acknowledgments
 

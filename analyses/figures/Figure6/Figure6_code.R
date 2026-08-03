@@ -1,12 +1,17 @@
 # =============================================================================
 # Script name: Figure6_code.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
+# Date created: 2026-05-12
 # Purpose: Build an iTOL-style circular phylogenetic tree of marine fish
 #   species from the network inferred by ScaleNet, annotated with:
 #     - Concentric rings for Zone, and Habitat associations
 #     - Bar plots for mean feature importance, betweenness centrality, and degree centrality
 #     - Indicator taxa highlighted in red
-
+# Inputs:  analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda (latest)
+#          data/Taxonomy_Data.csv
+# Outputs: analyses/figures/Figure6/Figure6.pdf
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -47,7 +52,6 @@ repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
 
 analyses_dir <- file.path(repo_root, "analyses")
-source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 objlist <- list()
 
@@ -77,11 +81,8 @@ mergedf.all.bplot <- data.frame(table(mergedf.all.bplot$source, mergedf.all.bplo
 # =============================================================================
 
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
-                               pattern = "^graph_data_ecorr50_all_strat_", full.names = TRUE)
+                               pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
-dataset_path    <- file.path(data_dir, "seamount_integrated_dataset.rda")
-
-species_prev_rate <- 3
 
 # out_pdf <- file.path(script_dir, paste0("Figure6_", Sys.Date(), ".pdf"))
 
@@ -90,29 +91,6 @@ species_prev_rate <- 3
 # =============================================================================
 
 load(graph_data_path)   # -> network, lay, nodes.annot
-
-# -- eDNA abundance table -----------------------------------------------------
-load(dataset_path)   # -> sm
-
-# Recode legacy habitat codes (Soft_back_reef -> BackReef,
-# Reef_outer_slope -> OuterSlope, Summit50/250/500 -> Seamount50/250/500)
-# so the values in sm$sample_info$Habitat match the renamed palette
-# keys / factor levels used downstream.
-sm$sample_info$Habitat <- recode_habitats(sm$sample_info$Habitat)
-
-edna_abundance <- t(sm$X)
-
-filtered_edna_abundance       <- get_sample_by_prevalence(edna_abundance, species_prev_rate)
-filtered_edna_presenceAbsence <- vegan::decostand(filtered_edna_abundance, method = "pa")
-
-# -- Sample metadata ----------------------------------------------------------
-sample.info <- sm$sample_info
-colnames(sample.info)[colnames(sample.info) == "DeepSlope"] <- "DeepSlope150"
-sample.info$Zone <- ifelse(
-  sample.info$Habitat %in% c("Bay", "Lagoon", "OuterSlope", "BackReef"), "Shallow",
-  ifelse(sample.info$Habitat %in% c("Seamount50", "DeepSlope150"), "Middle",
-         ifelse(sample.info$Habitat %in% c("Seamount250", "Seamount500"), "Deep", NA))
-)
 
 # =============================================================================
 # MODULE DETECTION — fast greedy on undirected graph
@@ -168,19 +146,6 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in% paste0(cols_to_rename
 
 # Step 2 — recode DeepSlope AFTER assigned_class column exists under its correct name
 sp.chisq_habitat$assigned_class[sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
-# Also recode legacy habitat codes in assigned_class
-# (Soft_back_reef/Reef_outer_slope/Summit50/250/500 -> new names) so the values
-# match the renamed palette keys / factor levels used by the tree rings.
-sp.chisq_habitat$assigned_class <- recode_habitats(sp.chisq_habitat$assigned_class)
-
-# Step 3 — also recode any DeepSlope column name suffixes (padj_PH_, residual_)
-colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150", colnames(sp.chisq_habitat))
-# Rename column-name suffixes for the 5 renamed habitat codes too
-# (e.g. padj_PH_Summit500 -> padj_PH_Seamount500) for consistency with
-# the renamed palette keys.
-for (.old in names(HABITAT_RECODE)) {
-  colnames(sp.chisq_habitat) <- gsub(.old, HABITAT_RECODE[[.old]], colnames(sp.chisq_habitat), fixed = TRUE)
-}
 
 nodes_tree.df <- modularity.df[, c("name", "fast_greedy")] %>%
   # Join habitat-level chi-sq assignment
@@ -209,11 +174,11 @@ nodes_tree.df <- nodes_tree.df[, c("name", "Habitat", "Zone", "Module")]
 
 colnames(nodes_tree.df)[colnames(nodes_tree.df)=="name"] <- "feature"
 
-taxonomy.df <- sm$taxonomy
-rownames(taxonomy.df) <- gsub(" ", ".", rownames(taxonomy.df))
+taxonomy.df <- read.csv(file.path(data_dir, "Taxonomy_Data.csv"), stringsAsFactors = FALSE)
+taxonomy.df$feature <- gsub(" ", ".", taxonomy.df$feature)
 
 # merge with taxonomy
-nodes_tree_taxo.df <- merge(nodes_tree.df, taxonomy.df, by.x = "feature", by.y = 0, all.x = TRUE)
+nodes_tree_taxo.df <- merge(nodes_tree.df, taxonomy.df, by = "feature", all.x = TRUE)
 
 # merge with centrality metrics
 nodes_tree_taxo.df <- merge(
@@ -242,17 +207,22 @@ nodes_tree_taxo.df$IsIndSp[is.na(nodes_tree_taxo.df$IsIndSp)]                   
 # ---------------------------------------------------------------------------
 
 tree_df <- nodes_tree_taxo.df %>%
-  dplyr::select(feature, class, order, family, genus, Module, Zone, Habitat,
+  dplyr::select(feature, MOTU_code, kingdom, phylum, class, order, family, genus, Module, Zone, Habitat,
                 betw_cent, degr_cent, mean_featureImportance, IsIndSp) %>%
   dplyr::mutate(
-    class  = ifelse(is.na(class),  "Unk_class",  class),
-    order  = ifelse(is.na(order),  paste0(class,  "_unk_order"),  order),
-    family = ifelse(is.na(family), paste0(order,  "_unk_family"), family),
-    genus  = ifelse(is.na(genus),  paste0(family, "_unk_genus"),  genus)
+    kingdom    = ifelse(is.na(kingdom), "Unk_kingdom",              kingdom),
+    phylum     = ifelse(is.na(phylum),  paste0(kingdom, "_unk_phylum"), phylum),
+    class      = ifelse(is.na(class),   paste0(phylum,  "_unk_class"),  class),
+    order      = ifelse(is.na(order),  paste0(class,  "_unk_order"),  order),
+    family     = ifelse(is.na(family), paste0(order,  "_unk_family"), family),
+    genus      = ifelse(is.na(genus),  paste0(family, "_unk_genus"),  genus),
+    MOTU_code  = ifelse(is.na(MOTU_code), feature, MOTU_code)
   )
 
 edges_df <- bind_rows(
-  tree_df %>% distinct(class)          %>% transmute(parent = "root", child = class),
+  tree_df %>% distinct(kingdom)         %>% transmute(parent = "root",   child = kingdom),
+  tree_df %>% distinct(kingdom, phylum) %>% transmute(parent = kingdom,  child = phylum),
+  tree_df %>% distinct(phylum, class)   %>% transmute(parent = phylum,   child = class),
   tree_df %>% distinct(class, order)   %>% transmute(parent = class,  child = order),
   tree_df %>% distinct(order, family)  %>% transmute(parent = order,  child = family),
   tree_df %>% distinct(family, genus)  %>% transmute(parent = family, child = genus),
@@ -306,12 +276,12 @@ zone_pal <- c(
 habitat_pal <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "BackReef"   = "#2e7d00",
-  "OuterSlope" = "#4e8273",
-  "Seamount50"         = "#ffe699",
+  "BackReef"         = "#2e7d00",
+  "OuterSlope"       = "#4e8273",
+  "Seamount50"       = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Seamount250"        = "#4a6a94",
-  "Seamount500"        = "#1a3250",
+  "Seamount250"      = "#4a6a94",
+  "Seamount500"      = "#1a3250",
   "NS.habitat"       = "gray"
 )
 
@@ -321,7 +291,7 @@ habitat_pal <- c(
 
 p_base <- suppressWarnings(
   ggtree(phylo_obj, layout = "circular", linewidth = 0.25, color = "grey50")
-) %<+% (tree_df %>% dplyr::select(feature, IsIndSp) %>% dplyr::rename(label = feature))
+) %<+% (tree_df %>% dplyr::select(feature, IsIndSp, MOTU_code) %>% dplyr::rename(label = feature))
 
 tree_data    <- p_base$data
 tree_radius  <- max(tree_data$x, na.rm = TRUE)
@@ -350,6 +320,7 @@ genus_nodes  <- .rank_nodes(unique(tree_df$genus),  tree_data)
 p3 <- p_base +
   geom_tiplab(
     aes(
+      label    = MOTU_code,
       fontface = ifelse(IsIndSp, "bold.italic", "italic"),
       color    = IsIndSp  # map to logical directly
     ),

@@ -1,11 +1,16 @@
 # =============================================================================
 # Script name: Figure5_code.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
+# Date created: 2026-05-12
 # Purpose: Build a 4-panel publication figure:
 #   Panel A — Co-occurrence network coloured by habitat
 #   Panel B — Same network coloured by fast-greedy module membership
-#   Panel C — Alluvial diagram: Habitat → Module membership
+#   Panel C — Alluvial diagram: Zone → Module → Habitat
 #   Panel D — Module enrichment heatmap (Zone + Habitat, enrichment only)
+# Inputs:  analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda (latest)
+#          analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+# Outputs: analyses/figures/Figure5/Figure5.pdf
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -51,14 +56,10 @@ repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
 
 analyses_dir <- file.path(repo_root, "analyses")
-source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
-                               pattern = "^graph_data_ecorr50_all_strat_", full.names = TRUE)
+                               pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
-dataset_path    <- file.path(data_dir, "seamount_integrated_dataset.rda")
-
-species_prev_rate <- 3
 
 out_pdf <- file.path(script_dir, "Figure5.pdf")
 
@@ -111,58 +112,24 @@ alluvial_habitat_colors <- c(
 
 load(graph_data_path)
 
-## Per Eugeni Belda's review: keep MOTU labels on the indicator
-## nodes in panels A and B (matching the labelling rule in
-## Figure 4), so the bridging taxa cited in Discussion (Pastinachus
-## ater, Scarus ghobban, Chlorurus sordidus, ...) are readable
-## directly on the network. Same indicator definition as Figure 4:
-## any taxon retained by bininter or terinter Predomics models.
+# Indicator MOTUs (retained by bininter or terinter Predomics models),
+# labelled on panels A and B — same rule as Figure 4.
 load(file.path(analyses_dir, "analysis_outputs",
                "bininter_output_data",
                "bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda"))
 indicSp_bin.df <- predout.bin.sub
-rm(adonis_pred.bin, adonis_pred.maxn,
-   predout.bin, predout.bin.sub, predout.maxn, predout.maxn.sub)
+rm(adonis_pred.bin, predout.bin, predout.bin.sub)
 load(file.path(analyses_dir, "analysis_outputs",
                "terinter_output_data",
                "terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda"))
 indicSp_ter.df <- predout.bin.sub
-rm(adonis_pred.bin, adonis_pred.maxn,
-   predout.bin, predout.bin.sub, predout.maxn, predout.maxn.sub)
+rm(adonis_pred.bin, predout.bin, predout.bin.sub)
 indicator_names <- unique(c(
   as.character(indicSp_bin.df$feature[indicSp_bin.df$IsIndSp == 1]),
   as.character(indicSp_ter.df$feature[indicSp_ter.df$IsIndSp == 1])
 ))
 is_indicator    <- V(network)$name %in% indicator_names
-## Label only indicator MOTUs, rewriting the historical 'OTU' prefix
-## from the dataset to the manuscript's 'MOTU' wording (Eugeni's
-## terminology-harmonisation point).
-indicator_label <- ifelse(is_indicator,
-                          sub("^OTU", "MOTU", V(network)$label),
-                          NA)
-
-# -- eDNA abundance table -----------------------------------------------------
-load(dataset_path)
-
-# Recode legacy habitat codes (Soft_back_reef -> BackReef,
-# Reef_outer_slope -> OuterSlope, Summit50/250/500 -> Seamount50/250/500)
-# so the values in sm$sample_info$Habitat match the renamed palette
-# keys / factor levels used downstream.
-sm$sample_info$Habitat <- recode_habitats(sm$sample_info$Habitat)
-
-edna_abundance <- t(sm$X)
-
-filtered_edna_abundance       <- get_sample_by_prevalence(edna_abundance, species_prev_rate)
-filtered_edna_presenceAbsence <- vegan::decostand(filtered_edna_abundance, method = "pa")
-
-# -- Sample metadata ----------------------------------------------------------
-sample.info <- sm$sample_info
-colnames(sample.info)[colnames(sample.info) == "DeepSlope"] <- "DeepSlope150"
-sample.info$Zone <- ifelse(
-  sample.info$Habitat %in% c("Bay", "Lagoon", "OuterSlope", "BackReef"), "Shallow",
-  ifelse(sample.info$Habitat %in% c("Seamount50", "DeepSlope150"), "Middle",
-         ifelse(sample.info$Habitat %in% c("Seamount250", "Seamount500"), "Deep", NA))
-)
+indicator_label <- ifelse(is_indicator, V(network)$label, NA)
 
 # =============================================================================
 # MODULE DETECTION — fast greedy on undirected graph
@@ -221,6 +188,7 @@ run_gsea <- function(posthoc_df, modules_list, padj_cols, resid_cols) {
     padj_vec <- padj_vec[names(padj_vec) %in% species_list]
     res_vec  <- res_vec[names(res_vec)  %in% species_list]
     
+    set.seed(123)
     gsea_res <- piano::runGSA(
       geneLevelStats = padj_vec,
       directions     = res_vec,
@@ -267,19 +235,6 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in% paste0(cols_to_rename
 
 # Step 2 — recode DeepSlope AFTER assigned_class column exists under its correct name
 sp.chisq_habitat$assigned_class[sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
-# Also recode legacy habitat codes in assigned_class
-# (Soft_back_reef/Reef_outer_slope/Summit50/250/500 -> new names) so the values
-# match the renamed palette keys / factor levels used by panels C and D.
-sp.chisq_habitat$assigned_class <- recode_habitats(sp.chisq_habitat$assigned_class)
-
-# Step 3 — also recode any DeepSlope column name suffixes (padj_PH_, residual_)
-colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150", colnames(sp.chisq_habitat))
-# Rename column-name suffixes for the 5 renamed habitat codes too
-# (e.g. padj_PH_Summit500 -> padj_PH_Seamount500) so downstream code that
-# builds column names like paste0("padj_PH_", hab_levels) finds them.
-for (.old in names(HABITAT_RECODE)) {
-  colnames(sp.chisq_habitat) <- gsub(.old, HABITAT_RECODE[[.old]], colnames(sp.chisq_habitat), fixed = TRUE)
-}
 
 message("Running GSEA: Zone ...")
 gsea_zone <- run_gsea(sp.chisq_zone, fast_greedy_modules,
@@ -318,6 +273,10 @@ significant_clusters.habitat <- sort(unique(gsea_habitat$cluster[!is.na(gsea_hab
                                                                    gsea_habitat$padj_up < 0.05 &
                                                                    gsea_habitat$n_up > 1]))
 
+message(sprintf("Number of fast_greedy modules: %d", length(fast_greedy_modules)))
+message(sprintf("Number of modules enriched by GSEA (padj_up<0.05, n_up>1, any Zone/Habitat): %d",
+                length(all_significant_clusters)))
+
 # =============================================================================
 # PANEL A — Network coloured by habitat
 # =============================================================================
@@ -329,20 +288,10 @@ panel_A <- cowplot::as_grob(function() {
   
   plot(network,
        layout             = lay,
-       ## Labels only on the 31 indicator MOTUs (red-bordered nodes),
-       ## same rule as Figure 4 -- compromise between Thomas Lamy
-       ## (260 labels was unreadable) and Eugeni Belda (the
-       ## bridging taxa cited in the text should be readable on the
-       ## network). 'OTU' -> 'MOTU' prefix harmonisation applied
-       ## above when computing indicator_label.
        vertex.label       = indicator_label,
        vertex.color       = V(network)$color.habitat,
        vertex.shape       = V(network)$shape,
        vertex.size        = V(network)$size,
-       ## Dark grey border (grey15 at 3 px) on every node. With labels
-       ## off and the figure shrunk to \textwidth in the manuscript
-       ## (~4x reduction), a thinner / lighter border disappears at
-       ## print size; 3 px source lands at ~0.75 px on the page.
        vertex.frame.color = ifelse(is.na(V(network)$frame.color) |
                                      V(network)$frame.color == "" |
                                      V(network)$frame.color == "gray50",
@@ -409,20 +358,10 @@ panel_B <- cowplot::as_grob(function() {
   
   plot(network,
        layout             = lay,
-       ## Labels only on the 31 indicator MOTUs (red-bordered nodes),
-       ## same rule as Figure 4 -- compromise between Thomas Lamy
-       ## (260 labels was unreadable) and Eugeni Belda (the
-       ## bridging taxa cited in the text should be readable on the
-       ## network). 'OTU' -> 'MOTU' prefix harmonisation applied
-       ## above when computing indicator_label.
        vertex.label       = indicator_label,
        vertex.color       = node_cluster_colors,
        vertex.shape       = V(network)$shape,
        vertex.size        = V(network)$size,
-       ## Dark grey border (grey15 at 3 px) on every node. With labels
-       ## off and the figure shrunk to \textwidth in the manuscript
-       ## (~4x reduction), a thinner / lighter border disappears at
-       ## print size; 3 px source lands at ~0.75 px on the page.
        vertex.frame.color = ifelse(is.na(V(network)$frame.color) |
                                      V(network)$frame.color == "" |
                                      V(network)$frame.color == "gray50",
@@ -505,15 +444,10 @@ panel_B <- cowplot::as_grob(function() {
 
 zone_order <- c("Shallow", "Middle", "Deep", "NS.zone")
 
-module_order <- c("Cluster_08", "Cluster_01", "Cluster_02", "Cluster_03",
-                  "Cluster_04", "Cluster_05", "Cluster_09", "Cluster_06",
-                  "Cluster_10", "Cluster_12", "Cluster_07","Cluster_11", 
-                  "Cluster_13")
-
 habitat_order <- c("Bay", "Lagoon", "BackReef", "OuterSlope",
                    "Seamount50", "DeepSlope150", "Seamount250", "Seamount500", "NS.habitat")
 
-alluvial_df <- modularity.df[, c("name", "fast_greedy")] %>%
+alluvial_counts <- modularity.df[, c("name", "fast_greedy")] %>%
   dplyr::left_join(
     sp.chisq_habitat %>% dplyr::select(feature, assigned_habitat = assigned_class),
     by = c("name" = "feature")
@@ -533,7 +467,21 @@ alluvial_df <- modularity.df[, c("name", "fast_greedy")] %>%
     ),
     Module = paste0("Cluster_", sprintf("%02d", fast_greedy))
   ) %>%
-  dplyr::count(Zone, Module, Habitat, name = "n_species") %>%
+  dplyr::count(Zone, Module, Habitat, name = "n_species")
+
+# Order modules by dominant Habitat (most species), following habitat_order.
+# Panel D reuses this same module_order, so both panels stay aligned.
+module_order <- alluvial_counts %>%
+  dplyr::group_by(Module, Habitat) %>%
+  dplyr::summarise(n = sum(n_species), .groups = "drop") %>%
+  dplyr::group_by(Module) %>%
+  dplyr::slice_max(n, n = 1, with_ties = FALSE) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(habitat_rank = match(Habitat, habitat_order)) %>%
+  dplyr::arrange(habitat_rank, Module) %>%
+  dplyr::pull(Module)
+
+alluvial_df <- alluvial_counts %>%
   dplyr::mutate(
     Zone    = factor(Zone,    levels = zone_order),
     Module  = factor(Module,  levels = module_order),
@@ -689,9 +637,7 @@ middle_row <- gridExtra::arrangeGrob(
   widths = c(1.6, 1)
 )
 
-## Canvas 22x18 with heights c(1.0, 1.2): top and middle rows are
-## near-equal in height, so panel D's heatmap (13 short rows) is
-## proportioned naturally rather than being stretched vertically.
+## heights=c(1.0,1.2) keeps top/middle rows near-equal so panel D's heatmap isn't stretched.
 pdf(out_pdf, width = 22, height = 18)
 
 gridExtra::grid.arrange(

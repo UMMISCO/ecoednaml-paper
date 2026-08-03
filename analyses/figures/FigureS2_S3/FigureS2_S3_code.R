@@ -1,12 +1,18 @@
 # =================================================================================
 # Script name: FigureS2_S3.R
 # Authors: Estephe Kana & Edi Prifti & Eugeni Belda
+# Date created: 2026-05-12
 # Purpose: Build two figures
-#            - Figure S1: 4-panel figure for pairwise correlation between degree 
+#            - Figure S2: 4-panel figure for pairwise correlation between degree
 #                         centrality, betweeness centrality and feature importance; 
 #                         and a scatterplot3D showing all these metrics
-#            - Figure S2: Get the top 20 MOTUs based on betweeness centrality and 
+#            - Figure S3: Get the top 20 MOTUs based on betweeness centrality and
 #                         degree centraily
+# Inputs:  analyses/analysis_outputs/bininter_output_data/bininter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/analysis_outputs/terinter_output_data/terinter_Predomics_all_analyses_overall_data_strat_group_prev_3.Rda
+#          analyses/files/rdata/graph_data/graph_data_ecorr50_all_strat_*.rda (latest)
+# Outputs: analyses/figures/FigureS2_S3/FigureS2.pdf
+#          analyses/figures/FigureS2_S3/FigureS3.pdf
 # =================================================================================
 
 # -----------------------------------------------------------------------------
@@ -45,7 +51,6 @@ repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
 
 analyses_dir <- file.path(repo_root, "analyses")
-source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 out_dir <- script_dir
 
@@ -78,40 +83,14 @@ mergedf.all.bplot <- data.frame(table(mergedf.all.bplot$source, mergedf.all.bplo
 # =============================================================================
 
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),
-                               pattern = "^graph_data_ecorr50_all_strat_", full.names = TRUE)
+                               pattern = "^graph_data_ecorr50_all_strat_.*\\.rda$", full.names = TRUE)
 graph_data_path <- rda_files[which.max(file.mtime(rda_files))]
-dataset_path    <- file.path(data_dir, "seamount_integrated_dataset.rda")
-
-species_prev_rate <- 3
 
 # =============================================================================
 # LOAD DATA
 # =============================================================================
 
 load(graph_data_path)   # -> network, lay, nodes.annot
-
-# -- eDNA abundance table -----------------------------------------------------
-load(dataset_path)   # -> sm
-
-# Recode legacy habitat codes (Soft_back_reef -> BackReef,
-# Reef_outer_slope -> OuterSlope, Summit50/250/500 -> Seamount50/250/500)
-# so the values in sm$sample_info$Habitat match the renamed palette
-# keys / factor levels used downstream.
-sm$sample_info$Habitat <- recode_habitats(sm$sample_info$Habitat)
-
-edna_abundance <- t(sm$X)
-
-filtered_edna_abundance       <- get_sample_by_prevalence(edna_abundance, species_prev_rate)
-filtered_edna_presenceAbsence <- vegan::decostand(filtered_edna_abundance, method = "pa")
-
-# -- Sample metadata ----------------------------------------------------------
-sample.info <- sm$sample_info
-colnames(sample.info)[colnames(sample.info) == "DeepSlope"] <- "DeepSlope150"
-sample.info$Zone <- ifelse(
-  sample.info$Habitat %in% c("Bay", "Lagoon", "OuterSlope", "BackReef"), "Shallow",
-  ifelse(sample.info$Habitat %in% c("Seamount50", "DeepSlope150"), "Middle",
-         ifelse(sample.info$Habitat %in% c("Seamount250", "Seamount500"), "Deep", NA))
-)
 
 # =============================================================================
 # MODULARITY DETECTION — fast greedy on undirected graph
@@ -144,12 +123,12 @@ distinct_13 <- c(
 habitat_pal <- c(
   "Bay"              = "#5ae6ab",
   "Lagoon"           = "#88d941",
-  "BackReef"   = "#2e7d00",
-  "OuterSlope" = "#4e8273",
-  "Seamount50"         = "#ffe699",
+  "BackReef"         = "#2e7d00",
+  "OuterSlope"       = "#4e8273",
+  "Seamount50"       = "#ffe699",
   "DeepSlope150"     = "#d79c3b",
-  "Seamount250"        = "#4a6a94",
-  "Seamount500"        = "#1a3250",
+  "Seamount250"      = "#4a6a94",
+  "Seamount500"      = "#1a3250",
   "NS.habitat"       = "gray"
 )
 
@@ -179,19 +158,6 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in% paste0(cols_to_rename
 
 # Step 2 — recode DeepSlope AFTER assigned_class column exists under its correct name
 sp.chisq_habitat$assigned_class[sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
-# Also recode legacy habitat codes in assigned_class
-# (Soft_back_reef/Reef_outer_slope/Summit50/250/500 -> new names) so the values
-# match the renamed palette keys / factor levels used downstream.
-sp.chisq_habitat$assigned_class <- recode_habitats(sp.chisq_habitat$assigned_class)
-
-# Step 3 — also recode any DeepSlope column name suffixes (padj_PH_, residual_)
-colnames(sp.chisq_habitat) <- gsub("DeepSlope", "DeepSlope150", colnames(sp.chisq_habitat))
-# Rename column-name suffixes for the 5 renamed habitat codes too
-# (e.g. padj_PH_Summit500 -> padj_PH_Seamount500) for consistency with
-# the renamed palette keys.
-for (.old in names(HABITAT_RECODE)) {
-  colnames(sp.chisq_habitat) <- gsub(.old, HABITAT_RECODE[[.old]], colnames(sp.chisq_habitat), fixed = TRUE)
-}
 
 nodes_tree.df <- modularity.df[, c("name", "fast_greedy")] %>%
   # Join habitat-level chi-sq assignment — rename inside select to avoid clash
@@ -220,14 +186,9 @@ nodes_tree.df <- nodes_tree.df[, c("name", "Habitat", "Zone", "Module")]
 
 colnames(nodes_tree.df)[colnames(nodes_tree.df)=="name"] <- "feature"
 
-taxonomy.df <- sm$taxonomy
-rownames(taxonomy.df) <- gsub(" ", ".", rownames(taxonomy.df))
-# merge with taxonomy
-nodes_tree_taxo.df <- merge(nodes_tree.df, taxonomy.df, by.x = "feature", by.y = 0, all.x = TRUE)
-
 # merge with centrality metrics
 nodes_tree_taxo.df <- merge(
-  nodes_tree_taxo.df,
+  nodes_tree.df,
   nodes.annot[, c("name", "betw_cent", "degr_cent")],
   by.x = "feature", by.y = "name", all.x = TRUE
 )
@@ -246,16 +207,12 @@ nodes_tree_taxo.df$mean_featureImportance[is.na(nodes_tree_taxo.df$mean_featureI
 nodes_tree_taxo.df$IsIndSp[is.na(nodes_tree_taxo.df$IsIndSp)]                               <- FALSE
 
 # ---------------------------------------------------------------------------
-# 1. Build phylo object (unchanged)
+# Select per-MOTU metrics used by the correlation/bubble plots below
 # ---------------------------------------------------------------------------
 
 tree_df <- nodes_tree_taxo.df %>%
-  dplyr::select(feature, family, genus, Module, Zone, Habitat,
-                betw_cent, degr_cent, mean_featureImportance, IsIndSp) %>%
-  dplyr::mutate(
-    family = ifelse(is.na(family), "Unk_family", family),
-    genus  = ifelse(is.na(genus),  paste0(family, "_unk_genus"), genus)
-  )
+  dplyr::select(feature, Module, Zone, Habitat,
+                betw_cent, degr_cent, mean_featureImportance, IsIndSp)
 
 # ---------------------------------------------------------------------------
 # 4-panel correlation figure
