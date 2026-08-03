@@ -68,7 +68,6 @@ data_dir     <- file.path(repo_root, "data")
 repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
 analyses_dir <- file.path(repo_root, "analyses")
-source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
 load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
@@ -76,11 +75,7 @@ rownames(smX_pres_abs_matrix) <- smX_pres_abs_matrix$Station
 base_meta_cols <- c("Station", "Habitat", "Zone", "hab_inoff")
 edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% base_meta_cols])
 
-# Already prevalence-filtered upstream (make_db_object_clean.R); prevalence_rate only labels the output filename.
-# filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, prevalence_rate)
-filtered_edna_presenceAbsence <- edna_presenceAbsence
-
-acc <- data.frame(filtered_edna_presenceAbsence)
+acc <- data.frame(edna_presenceAbsence)
 acc$Station <- rownames(acc)
 
 # merge presence/absence table with sample info (Zone/hab_inoff already derived from Habitat)
@@ -109,7 +104,7 @@ if (habitat_group == "hab_inoff") {
   hab_type <- "hab"
   comp     <- combn(x=c('Seamount250', 'Seamount500'), m = 2, simplify = FALSE)
 }else {
-  stop("Invalid habitat group specified. Use 'hab_inoff' or 'group'.")
+  stop("Invalid habitat group specified. Use 'hab_inoff', 'strat_group', 'Shallow', 'Middle', or 'Deep'.")
 }
 
 print(paste("Selected habitat grouping:", habitat_group))
@@ -237,9 +232,7 @@ save_pred_results <- function(results_pred, X, ilevels){
   subdf$prevalence <- results_pred$FI_allfeat$fprev$value
   results_pred$pred_out_fbm <- subdf
   
-  save_results <- results_pred
-  
-  return(save_results)
+  return(results_pred)
   
 }
 # compute permanova analysis on presence/absence data (Jaccard distances)

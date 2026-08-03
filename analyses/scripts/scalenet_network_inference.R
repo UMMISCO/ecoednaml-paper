@@ -61,7 +61,6 @@ repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
 
 analyses_dir <- file.path(repo_root, "analyses")
-source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
 load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
@@ -273,10 +272,9 @@ allIndicSpecies <- rbind(keySpecies_bin, keySpecies_ter)
 select_network_attributes <- function(edgesListPath, ecorr_percent, taxo) {
 
   # load the edge information for spectral3off2 network
-  edges <- read.delim(edgesListPath, as.is = TRUE); dim(edges) # 50403 edges and 7 columns
-  edges.raw <- edges
+  edges <- read.delim(edgesListPath, as.is = TRUE); dim(edges)
   # remove edges that do not have an orientation
-  edges <- edges[!is.na(edges$eorientScore),]; dim(edges) # 1607 edges and 7 columns
+  edges <- edges[!is.na(edges$eorientScore),]; dim(edges)
   colnames(edges)[1:2] <- c("from","to")
   # edges$from <- gsub("_",":",edges$from)
   # edges$to <- gsub("_",":",edges$to)

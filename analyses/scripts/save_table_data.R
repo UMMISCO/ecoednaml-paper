@@ -25,8 +25,15 @@
 # define arguments for the script
 args <- commandArgs(trailingOnly = TRUE)
 
+if (length(args) < 1)
+  stop("Usage: Rscript save_table_data.R <prevalence> [<save_stratified>]\n",
+       "  prevalence: numeric 0-100 (e.g. 3) — used only to label output filenames\n",
+       "  save_stratified: TRUE or FALSE (default: FALSE)")
+
 # Prevalence rate used to label the output filenames (see comment below)
-species_prev_rate <- as.numeric(args[1])
+species_prev_rate <- suppressWarnings(as.numeric(args[1]))
+if (is.na(species_prev_rate) || species_prev_rate < 0 || species_prev_rate > 100)
+  stop("'prevalence' must be a number between 0 and 100, got: ", args[1])
 
 # Whether to also save per-stratum and pairwise tables (default: FALSE)
 save_stratified <- if (length(args) >= 2) as.logical(args[2]) else FALSE
@@ -42,7 +49,6 @@ repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
 
 analyses_dir <- file.path(repo_root, "analyses")
-source(file.path(script_dir, "utils.R"))
 
 # load dataset: samples x MOTU presence/absence, with Habitat/Zone/hab_inoff
 load(file.path(data_dir, "smX_pres_abs_matrix.rda"))
@@ -50,13 +56,9 @@ meta_cols <- c("Station", "Habitat", "Zone", "hab_inoff")
 edna_presenceAbsence <- as.matrix(smX_pres_abs_matrix[, !colnames(smX_pres_abs_matrix) %in% meta_cols])
 rownames(edna_presenceAbsence) <- smX_pres_abs_matrix$Station
 
-# Already prevalence-filtered upstream (make_db_object_clean.R); species_prev_rate only labels output filenames.
-# filtered_edna_presenceAbsence <- get_sample_by_prevalence(edna_presenceAbsence, species_prev_rate)
-filtered_edna_presenceAbsence <- edna_presenceAbsence
-
 # Save full table for ScaleNet (default output)
 write.table(
-  filtered_edna_presenceAbsence,
+  edna_presenceAbsence,
   file  = file.path(analyses_dir, "files", "txt", paste0("presanceAbsence_table_prev_", species_prev_rate, ".txt")),
   quote = FALSE,
   sep   = "\t",
@@ -64,14 +66,14 @@ write.table(
   col.names = TRUE
 )
 message("Saved: presanceAbsence_table_prev_", species_prev_rate, ".txt (",
-        nrow(filtered_edna_presenceAbsence), " samples x ",
-        ncol(filtered_edna_presenceAbsence), " species)")
+        nrow(edna_presenceAbsence), " samples x ",
+        ncol(edna_presenceAbsence), " species)")
 
 # Optionally save per-stratum and pairwise tables
 if (save_stratified) {
   sample.info <- smX_pres_abs_matrix[, c("Station", "Zone")]
 
-  presabs.df          <- as.data.frame(filtered_edna_presenceAbsence)
+  presabs.df          <- as.data.frame(edna_presenceAbsence)
   presabs.df$Station   <- rownames(presabs.df)
   presabs.info.df     <- merge(presabs.df, sample.info[, c("Station", "Zone")], by = "Station", all.x = TRUE)
 

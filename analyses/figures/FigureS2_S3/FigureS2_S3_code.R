@@ -51,7 +51,6 @@ repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 data_dir  <- Sys.getenv("DATA_DIR",  unset = file.path(repo_root, "data"))
 
 analyses_dir <- file.path(repo_root, "analyses")
-source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 out_dir <- script_dir
 
@@ -159,10 +158,6 @@ colnames(sp.chisq_habitat)[colnames(sp.chisq_habitat) %in% paste0(cols_to_rename
 
 # Step 2 — recode DeepSlope AFTER assigned_class column exists under its correct name
 sp.chisq_habitat$assigned_class[sp.chisq_habitat$assigned_class == "DeepSlope"] <- "DeepSlope150"
-# Also recode legacy habitat codes in assigned_class
-# (Soft_back_reef/Reef_outer_slope/Summit50/250/500 -> new names) so the values
-# match the renamed palette keys / factor levels used downstream.
-sp.chisq_habitat$assigned_class <- recode_habitats(sp.chisq_habitat$assigned_class)
 
 nodes_tree.df <- modularity.df[, c("name", "fast_greedy")] %>%
   # Join habitat-level chi-sq assignment — rename inside select to avoid clash

@@ -47,11 +47,6 @@ repo_root    <- dirname(dirname(dirname(script_dir)))     # <repo>/
 repo_root <- Sys.getenv("REPO_ROOT", unset = repo_root)
 
 analyses_dir <- file.path(repo_root, "analyses")
-# Load HABITAT_RECODE / recode_habitats() so the legacy habitat codes
-# (Soft_back_reef, Reef_outer_slope, Summit50/250/500) stored in the
-# cached graph_data Rda can be mapped onto the renamed palette keys
-# (BackReef, OuterSlope, Seamount50/250/500) before plotting.
-source(file.path(repo_root, "analyses", "scripts", "utils.R"))
 
 out_dir         <- script_dir
 rda_files       <- list.files(file.path(analyses_dir, "files", "rdata", "graph_data"),

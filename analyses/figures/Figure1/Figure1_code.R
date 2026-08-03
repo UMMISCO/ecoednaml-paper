@@ -11,8 +11,8 @@
 #          data/Taxonomy_Data.csv
 #          data/Sample_Data.csv
 #          data/eDNA_Data.csv (raw long-format
-#          abundance table, used to rebuild the full/unfiltered MOTU set for
-#          the Panel B heatmap's prev<3 vs prev>=3 facet split)
+#          abundance table, used to rebuild the full/filtered MOTU set for
+#          the Panel C heatmap's prev<3 vs prev>=3 facet split)
 # Outputs: analyses/figures/Figure1/Figure1.pdf
 # =============================================================================
 
@@ -167,11 +167,7 @@ raw_long <- read.csv(file.path(data_dir, "eDNA_Data.csv"),
                      stringsAsFactors = FALSE)
 raw_long <- raw_long[!is.na(raw_long$best_taxonomic_assignment), ]
 
-## Same MOTU_code assignment logic as make_db_object_clean.R, so full-set
-## MOTU codes line up with the 318 already present in smX_pres_abs_matrix.
-## The MOTUs "kept" under their full taxon-name suffix are recovered directly
-## from smX_pres_abs_matrix's own column names (rather than highlighted_taxa_list.csv,
-## which is not distributed with the repo).
+## MOTU_code assignment 
 motu_codes_to_keep <- motu_cols[grepl("^MOTU[0-9]+_", motu_cols)]
 raw_long$MOTU_code <- ifelse(
   raw_long$best_taxonomic_assignment %in% motu_codes_to_keep,
@@ -247,8 +243,6 @@ site_order <- dfaims_melt %>%
 # Apply the ordered factor to dfaims_melt
 dfaims_melt$variable <- factor(dfaims_melt$variable, levels = site_order)
 
-
-## Binarize: any non-zero read count = presence, matching the rest of the pipeline.
 dfaims_melt$presence <- factor(
   ifelse(is.na(dfaims_melt$value) | dfaims_melt$value == 0, "Absent", "Present"),
   levels = c("Absent", "Present"))
@@ -320,9 +314,6 @@ p3 <- ggplot(dfaims_meta, aes(x = Station, y = MOTU_richness, fill = Habitat)) +
   facet_nested(. ~ Habitat, scales = "free_x", space = "fixed") +
   theme_bw() +
   scale_fill_manual(values = habitat_palette) +
-  ## p3's own legend is suppressed (guide_legend(nrow=1) kept wrapping to two
-  ## rows); the patchwork-level legend collection in the pdf() block below
-  ## handles it instead.
   theme(
     axis.text.x      = element_blank(),
     axis.ticks.x     = element_blank(),
@@ -439,14 +430,10 @@ if (!dir.exists(path)) {
 
 # save the combined figure to a pdf
 pdf(file=paste0(path, "Figure1.pdf"), h=20, w=22)
-## p2 is wrapped so its legend stays inside panel C; p3 stays unwrapped so
-## its habitat legend collects to the full-width patchwork level (nrow=1).
-## p1/p4 wrapped too, keeping their own legends in place.
 wrap_elements(full = p1) +
   wrap_elements(full = p4) +
   wrap_elements(full = p2) +
   p3 +
-  ## heights gives panel C (rows 4-7) ~60% more vertical space per row than A/B/D.
   plot_layout(design = layout, heights = c(rep(1, 3), rep(1.6, 4), rep(1, 2))) +
   plot_annotation(tag_levels = "A") &
   theme(plot.tag = element_text(face = "bold", size = 24))
