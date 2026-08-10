@@ -174,7 +174,7 @@ raw_long$MOTU_code <- ifelse(
   raw_long$best_taxonomic_assignment,
   sub("_.*", "", raw_long$best_taxonomic_assignment)
 )
-raw_long <- raw_long[order(raw_long$Spygen), ]
+raw_long <- raw_long[order(raw_long$Sample), ]
 
 full_wide <- dcast(raw_long, Station ~ MOTU_code, value.var = "mean_pcr_count_reads",
                    fun.aggregate = sum, na.rm = TRUE)
