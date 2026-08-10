@@ -41,7 +41,7 @@ rosm.cache/
 # Excude the script for data preprocessing
 analyses/scripts/clean_input_csv.R
 analyses/scripts/make_db_object*.R
-analyses/scripts/eDNA_Data_05082026.R
+analyses/scripts/eDNA_Data_05082026_code.R
 analyses/scripts/extract_highlighted_taxa.R
 
 # Exclude graphics output from predomics
