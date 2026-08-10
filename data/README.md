@@ -1,6 +1,6 @@
 # Data folder
 
-The data files required to run the pipeline are **not publicly distributed** in this repository due to New Caledonian legislation on sensitive environmental data. Access requires a Data Use Agreement (DUA), which will be granted systematically for reproducibility purposes — contact the corresponding author. A processed version of the dataset is also archived on [Zenodo](https://doi.org/10.5281/zenodo.21502975).
+The data files required to run the pipeline are **not publicly distributed** in this repository due to New Caledonian legislation on sensitive environmental data. Access requires a Data Use Agreement (DUA), which will be granted systematically for reproducibility purposes — contact the corresponding author. A processed version of the dataset is archived on [Zenodo](https://doi.org/10.5281/zenodo.21502975).
 
 For reproducibility purposes, `smX_pres_abs_matrix.rda` — the presence/absence matrix used as input to the pipeline — is already available in this folder. With this file alone, all analyses are reproducible except Figure 1 and Figure 6.
 
